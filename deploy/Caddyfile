@@ -1,0 +1,14 @@
+# HTTPS automático (Let's Encrypt). O domínio vem da variável DOMINIO.
+{$DOMINIO} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+	request_body {
+		max_size 250MB
+	}
+	reverse_proxy web:3000
+}

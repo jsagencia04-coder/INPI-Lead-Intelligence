@@ -1,0 +1,25 @@
+# Blueprint do Render (https://render.com): API + worker. Banco e arquivos ficam no Supabase.
+# Variáveis marcadas com sync: false são preenchidas no painel do Render.
+services:
+  - type: web
+    name: inpi-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars: &env
+      - { key: DATABASE_URL, sync: false }
+      - { key: AUTH_MODE, value: supabase }
+      - { key: SUPABASE_URL, sync: false }
+      - { key: SUPABASE_JWT_SECRET, sync: false }
+      - { key: SUPABASE_SERVICE_ROLE_KEY, sync: false }
+      - { key: STORAGE_BACKEND, value: supabase }
+      - { key: ANTHROPIC_API_KEY, sync: false }
+      - { key: IA_ORCAMENTO_SEMANAL_USD, value: "20" }
+  - type: worker
+    name: inpi-worker
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    dockerCommand: python -m app.worker
+    envVars: *env

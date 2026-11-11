@@ -1,0 +1,12 @@
+{
+  "name": "INPI Lead Intelligence",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "INPI Lead Intelligence", "onAutoForward": "openBrowser" },
+    "8000": { "label": "API", "onAutoForward": "silent" },
+    "5432": { "label": "Postgres", "onAutoForward": "silent" }
+  },
+  "postAttachCommand": "bash scripts/iniciar.sh"
+}

@@ -1,0 +1,58 @@
+# Sistema publicado na internet, em um servidor seu (VPS), com HTTPS automático.
+# Guia: docs/PUBLICAR_NA_WEB.md
+#   docker compose -f docker-compose.web.yml up -d --build
+# Lê o arquivo .env da raiz (DOMINIO, POSTGRES_PASSWORD) e backend/.env (demais configurações).
+services:
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment: { DOMINIO: "${DOMINIO:?defina DOMINIO no arquivo .env da raiz}" }
+    volumes: [./deploy/Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data, caddy_config:/config]
+    depends_on: [web]
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no arquivo .env da raiz}"
+      POSTGRES_DB: inpi
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 20 }
+    restart: unless-stopped
+    # sem "ports": o banco não fica acessível pela internet
+
+  api:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    env_file: backend/.env
+    environment: &backend_env
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/inpi"
+      STORAGE_LOCAL_DIR: /srv/backend/data/storage
+      CNPJ_CACHE_DIR: /srv/backend/data/cnpj
+      CORS_ORIGINS: '["https://${DOMINIO}"]'
+    volumes: [dados:/srv/backend/data]
+    depends_on: { db: { condition: service_healthy } }
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    command: ["python", "-m", "app.worker"]
+    env_file: backend/.env
+    environment: *backend_env
+    volumes: [dados:/srv/backend/data]
+    depends_on: [api]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args: { BACKEND_URL: "http://api:8000" }
+    depends_on: [api]
+    restart: unless-stopped
+    # sem "ports": só o Caddy (HTTPS) fala com as telas
+
+volumes:
+  pgdata:
+  dados:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Estrutura copiada do XML oficial da RPI 2914 (10/11/2026). Nomes de titulares,
+     procuradores e marcas foram substituídos por nomes fictícios. -->
+<revista numero="2914" data="10/11/2026">
+  <processo numero="945424620" data-deposito="02/10/2026">
+    <despachos>
+      <despacho codigo="IPAS009" nome="Publicação de pedido de registro para oposição (exame formal concluído)"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="FULANO DE TAL EXEMPLO" pais="BR" uf="SP"/>
+    </titulares>
+    <marca apresentacao="Nominativa" natureza="Produtos e/ou Serviço">
+      <nome>MARCA ALFA</nome>
+    </marca>
+    <lista-classe-nice>
+      <classe-nice codigo="09">
+        <especificacao>Aplicativos, baixáveis; </especificacao>
+        <status>Pendente</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="945410948" data-deposito="30/09/2026">
+    <despachos>
+      <despacho codigo="IPAS009" nome="Publicação de pedido de registro para oposição (exame formal concluído)"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="COMÉRCIO EXEMPLO BETA LTDA" pais="BR" uf="MG"/>
+    </titulares>
+    <marca apresentacao="Nominativa" natureza="Produtos e/ou Serviço">
+      <nome>Beta</nome>
+    </marca>
+    <lista-classe-nice>
+      <classe-nice codigo="09">
+        <especificacao>Baterias elétricas para veículos; </especificacao>
+        <status>Pendente</status>
+      </classe-nice>
+    </lista-classe-nice>
+    <procurador>PROCURADORA FICTÍCIA UM</procurador>
+  </processo>
+  <processo numero="828886318">
+    <despachos>
+      <despacho codigo="IPAS161" nome="Extinção de registro pela expiração do prazo de vigência"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="INDÚSTRIA E COMÉRCIO DE ALIMENTOS GAMA LTDA -ME" pais="BR" uf="SP"/>
+    </titulares>
+  </processo>
+  <processo numero="937208078">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca reproduz ou imita os seguintes registros de terceiros, sendo, portanto, irregistrável de acordo com o inciso XIX do Art. 124 da LPI: Processo 935027718 (MARCA DE TERCEIRO).</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="FULANO DE TAL EXEMPLO" pais="BR" uf="SP"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="37">
+        <especificacao>Higienização de estofamento; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="939557835">
+    <despachos>
+      <despacho codigo="IPAS136" nome="Exigência de mérito">
+        <texto-complementar>Preste esclarecimentos quanto ao item &quot;Comércio de produtos&quot;, tendo em vista que possui descrição genérica.</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="COMERCIAL DELTA E FILHOS" pais="BR" uf="MG"/>
+    </titulares>
+  </processo>
+  <processo numero="939400901">
+    <despachos>
+      <despacho codigo="IPAS029" nome="Deferimento do pedido"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="EPSILON SOLUÇÕES IMOBILIÁRIAS LTDA" pais="BR" uf="SP"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="35">
+        <especificacao>Serviços de intermediação comercial; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="942334000">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca reproduz ou imita registro de terceiro.</texto-complementar>
+      </despacho>
+      <despacho codigo="IPAS185" nome="Arquivamento de petição por falta de procuração">
+        <protocolo numero="850260129417" data="20/03/2026" codigoServico="30221">
+          <requerente nome-razao-social="INSTITUTO TERCEIRO OPONENTE" pais="BR" uf="MG"/>
+          <procurador>PROCURADOR DO OPONENTE</procurador>
+        </protocolo>
+      </despacho>
+      <despacho codigo="IPAS699" nome="Ato de prejudicar petição">
+        <texto-complementar>Fica prejudicada a Manifestação nº 850260198403 por carecer de objeto.</texto-complementar>
+        <protocolo numero="850260198403" data="28/04/2026" codigoServico="3395">
+          <requerente nome-razao-social="CICRANA DE SOUZA EXEMPLO" pais="BR" uf="DF"/>
+        </protocolo>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="CICRANA DE SOUZA EXEMPLO" pais="BR" uf="DF"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="41">
+        <especificacao>Academia de dança;Cursos livres [ensino]; </especificacao>
+        <status>Pendente</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="940001112" data-deposito="01/09/2026">
+    <despachos>
+      <despacho codigo="IPAS009" nome="Publicação de pedido de registro para oposição (exame formal concluído)"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="ZETA HOLDINGS INC" pais="US"/>
+    </titulares>
+    <marca apresentacao="Nominativa" natureza="Produtos e/ou Serviço">
+      <nome>ZETA</nome>
+    </marca>
+    <dados-de-madri numero-inscricao-internacional="1234567" data-recebimento-inpi="01/09/2026"/>
+  </processo>
+  <processo numero="940001120" data-deposito="02/09/2026">
+    <despachos>
+      <despacho codigo="IPAS009" nome="Publicação de pedido de registro para oposição (exame formal concluído)"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="ETA TRADING LIMITED" pais="GB"/>
+    </titulares>
+    <marca apresentacao="Mista" natureza="De Produto">
+      <nome>ETA</nome>
+    </marca>
+    <classes-vienna>
+      <classe-vienna codigo="27.5.1" edicao="4"/>
+    </classes-vienna>
+  </processo>
+  <processo numero="935837620">
+    <despachos>
+      <despacho codigo="IPAS136" nome="Exigência de mérito"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="BELTRANO LIRA EXEMPLO" pais="BR" uf="CE"/>
+      <titular nome-razao-social="A. B. TETA DE OLIVEIRA" pais="BR" uf="CE"/>
+    </titulares>
+  </processo>
+  <processo numero="823650243" data-deposito="23/07/2001" data-concessao="13/03/2007" data-vigencia="13/03/2037">
+    <despachos>
+      <despacho codigo="IPAS270" nome="Deferimento da petição">
+        <protocolo numero="800260252181" data="14/10/2026" codigoServico="3745">
+          <requerente nome-razao-social="IOTA EQUIPAMENTOS LTDA" pais="BR" uf="PR"/>
+        </protocolo>
+      </despacho>
+      <despacho codigo="IPAS270" nome="Deferimento da petição">
+        <protocolo numero="800260252199" data="15/10/2026" codigoServico="3745">
+          <requerente nome-razao-social="IOTA EQUIPAMENTOS LTDA" pais="BR" uf="PR"/>
+        </protocolo>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="IOTA EQUIPAMENTOS LTDA" pais="BR" uf="PR"/>
+    </titulares>
+    <marca apresentacao="Mista" natureza="De Serviço">
+      <nome>IOTA</nome>
+    </marca>
+    <apostila>SEM DIREITO AO USO EXCLUSIVO DOS ELEMENTOS NOMINATIVOS</apostila>
+  </processo>
+  <processo numero="946000001">
+    <despachos>
+      <despacho codigo="IPAS999" nome="Despacho fictício ainda não catalogado"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="KAPPA SERVIÇOS LTDA" pais="BR" uf="RJ"/>
+    </titulares>
+  </processo>
+</revista>

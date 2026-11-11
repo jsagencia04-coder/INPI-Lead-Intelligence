@@ -1,0 +1,13 @@
+# Arquivos locais que não podem entrar nas imagens (ex.: node_modules do Windows quebra o build Linux)
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+backend/data
+backend/.env
+frontend/.env.local
+logs
+.git

@@ -1,0 +1,45 @@
+# Sistema completo em um servidor (ou no seu computador) com Docker.
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Com Supabase: remova o serviço "db" e aponte DATABASE_URL para o Supabase em backend/.env
+services:
+  db:
+    image: postgres:16
+    environment: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: inpi }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 20 }
+    restart: unless-stopped
+
+  api:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    env_file: backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/inpi
+      STORAGE_LOCAL_DIR: /srv/backend/data/storage
+    volumes: [dados:/srv/backend/data]
+    depends_on: { db: { condition: service_healthy } }
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    command: ["python", "-m", "app.worker"]
+    env_file: backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/inpi
+      STORAGE_LOCAL_DIR: /srv/backend/data/storage
+      CNPJ_CACHE_DIR: /srv/backend/data/cnpj
+    volumes: [dados:/srv/backend/data]
+    depends_on: [api]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args: { BACKEND_URL: "http://api:8000" }
+    ports: ["3000:3000"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  dados:
