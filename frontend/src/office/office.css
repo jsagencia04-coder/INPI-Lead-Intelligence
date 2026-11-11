@@ -1,0 +1,71 @@
+/* INPI AI Office — animações (somente transform/opacity: baratas para o navegador) */
+.office-viewport { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; cursor: grab;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 45%, rgba(201, 164, 92, 0.10) 0%, rgba(201, 164, 92, 0) 60%),
+    radial-gradient(ellipse at 50% 30%, #1a2236 0%, #0b0f17 70%);
+  outline: none; user-select: none; }
+.office-viewport::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.45) 100%); }
+.office-viewport:active { cursor: grabbing; }
+.office-viewport:focus-visible { box-shadow: inset 0 0 0 3px #3b82f6; }
+.office-svg { display: block; }
+
+.office-room-hit { cursor: pointer; }
+.office-room-outline { fill: none; stroke: transparent; stroke-width: 3; }
+.office-room:hover .office-room-outline { stroke: rgba(201, 164, 92, 0.6); }
+.office-room.is-selected .office-room-outline { stroke: #e2c27c; stroke-dasharray: 8 5; animation: office-march 1s linear infinite; }
+
+/* telas dos computadores */
+.office-screen { fill: #0b1220; transition: fill 0.3s; }
+.office-light-pool { mix-blend-mode: screen; }
+.office-bulb { filter: drop-shadow(0 0 3px #ffe3a3); }
+.office-city-light { animation: office-twinkle 4s ease-in-out infinite; }
+.office-chart-bar { animation: office-pulse-soft 2.4s ease-in-out infinite; }
+.office-screen--on { fill: var(--tela); animation: office-flicker 1.6s steps(3) infinite; }
+.office-led { fill: #22c55e; animation: office-blink 1.4s steps(2) infinite; }
+.office-water { animation: office-pulse-soft 3s ease-in-out infinite; }
+.office-lamp--pulse { animation: office-pulse 1.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* personagens */
+.office-agent { cursor: pointer; }
+.office-agent-body { transform-box: fill-box; transform-origin: 50% 100%; }
+.office-agent-ring { fill-opacity: 0.25; stroke-width: 2; }
+.office-agent-tag { opacity: 0; transition: opacity 0.15s; pointer-events: none; }
+.office-agent:hover .office-agent-tag, .office-agent:focus-visible .office-agent-tag, .office-agent.is-selected .office-agent-tag { opacity: 1; }
+.office-agent.is-selected .office-agent-ring { stroke-width: 3.5; fill-opacity: 0.45; }
+.office-agent:focus { outline: none; }
+
+.office-agent--idle .office-agent-body { animation: office-breathe 2.8s ease-in-out infinite; }
+.office-agent--working .office-agent-body { animation: office-type 0.45s steps(2) infinite; }
+.office-agent--thinking .office-agent-body { animation: office-sway 2.2s ease-in-out infinite; }
+.office-agent--waiting .office-agent-body { animation: office-tap 1.6s ease-in-out infinite; }
+.office-agent--completed .office-agent-body { animation: office-hop 0.9s ease-out 2; }
+.office-agent--error .office-agent-body { animation: office-shake 0.5s ease-in-out 3; }
+.office-agent--error .office-agent-ring { animation: office-pulse 0.9s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+.office-bubble circle { animation: office-dot 1.2s ease-in-out infinite; }
+.office-hourglass { animation: office-spin 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.office-check { animation: office-pop 0.4s ease-out; transform-box: fill-box; transform-origin: center; }
+.office-alert { animation: office-pulse 0.9s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+@keyframes office-breathe { 50% { transform: translateY(-1px) scaleY(1.01); } }
+@keyframes office-type { 50% { transform: translateY(-1.5px); } }
+@keyframes office-sway { 25% { transform: rotate(-2deg); } 75% { transform: rotate(2deg); } }
+@keyframes office-tap { 50% { transform: translateX(1.5px); } }
+@keyframes office-hop { 40% { transform: translateY(-9px); } 70% { transform: translateY(0); } }
+@keyframes office-shake { 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
+@keyframes office-dot { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes office-spin { 50% { transform: rotate(180deg); } 100% { transform: rotate(180deg); } }
+@keyframes office-pop { from { transform: scale(0.2); } to { transform: scale(1); } }
+@keyframes office-pulse { 50% { transform: scale(1.18); opacity: 0.7; } }
+@keyframes office-pulse-soft { 50% { opacity: 0.75; } }
+@keyframes office-flicker { 0% { opacity: 1; } 50% { opacity: 0.82; } 100% { opacity: 0.95; } }
+@keyframes office-blink { 50% { opacity: 0.2; } }
+@keyframes office-twinkle { 50% { opacity: 0.25; } }
+@keyframes office-march { to { stroke-dashoffset: -26; } }
+
+/* aba escondida: pausa tudo (economia de CPU) */
+.office-paused *, .office-paused { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .office-viewport * { animation: none !important; transition: none !important; }
+}
