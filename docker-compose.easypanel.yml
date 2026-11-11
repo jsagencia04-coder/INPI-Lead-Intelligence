@@ -1,0 +1,58 @@
+# Para publicar pelo EasyPanel (serviço do tipo "Compose"), na mesma VPS de outros sistemas.
+# O EasyPanel cuida do HTTPS e do domínio: aqui não há Caddy nem portas abertas.
+# As variáveis vêm da aba "Environment" do serviço no EasyPanel. Guia: docs/PUBLICAR_NO_EASYPANEL.md
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}"
+      POSTGRES_DB: inpi
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 20 }
+    restart: unless-stopped
+
+  api:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    environment: &backend_env
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/inpi"
+      STORAGE_LOCAL_DIR: /srv/backend/data/storage
+      CNPJ_CACHE_DIR: /srv/backend/data/cnpj
+      APP_ENV: "${APP_ENV:-homologacao}"
+      AUTH_MODE: "${AUTH_MODE:-local}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:?defina APP_SECRET_KEY}"
+      BOOTSTRAP_ADMIN_EMAIL: "${BOOTSTRAP_ADMIN_EMAIL:-}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
+      CORS_ORIGINS: '["https://${DOMINIO:-localhost}"]'
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      WHATSAPP_PHONE_NUMBER_ID: "${WHATSAPP_PHONE_NUMBER_ID:-}"
+      WHATSAPP_BUSINESS_ACCOUNT_ID: "${WHATSAPP_BUSINESS_ACCOUNT_ID:-}"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN:-}"
+      WHATSAPP_VERIFY_TOKEN: "${WHATSAPP_VERIFY_TOKEN:-}"
+      WHATSAPP_APP_SECRET: "${WHATSAPP_APP_SECRET:-}"
+      WHATSAPP_TEMPLATE_NAME: "${WHATSAPP_TEMPLATE_NAME:-}"
+      WHATSAPP_ENVIO_ATIVO: "${WHATSAPP_ENVIO_ATIVO:-false}"
+      WHATSAPP_NUMEROS_TESTE: "${WHATSAPP_NUMEROS_TESTE:-}"
+    volumes: [dados:/srv/backend/data]
+    depends_on: { db: { condition: service_healthy } }
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: backend/Dockerfile }
+    command: ["python", "-m", "app.worker"]
+    environment: *backend_env
+    volumes: [dados:/srv/backend/data]
+    depends_on: [api]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args: { BACKEND_URL: "http://api:8000" }
+    depends_on: [api]
+    restart: unless-stopped
+    # o domínio do EasyPanel aponta para este serviço, porta 3000
+
+volumes:
+  pgdata:
+  dados:
