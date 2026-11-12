@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Trecho real do XML oficial da RPI 2905 (08/09/2026). -->
+<revista numero="2905" data="08/09/2026">
+  <processo numero="938471708">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca reproduz ou imita os seguintes registros de terceiros, sendo, portanto, irregistrável de acordo com o inciso XIX do Art. 124 da LPI: Processo 824367642 (HYDRA TECH). Art. 124 - Não são registráveis como marca: XIX - reprodução ou imitação, no todo ou em parte, ainda que com acréscimo, de marca alheia registrada, para distinguir ou certificar produto ou serviço idêntico, semelhante ou afim, suscetível de causar confusão ou associação com marca alheia;</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="NANOVETORES TECNOLOGIA S.A." pais="BR" uf="SC"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="03">
+        <especificacao>Abrasivo [tecido];Abrasivos *;Acetona [removedor de esmalte de unhas];</especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+</revista>

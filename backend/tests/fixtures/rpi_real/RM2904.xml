@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Trechos reais do XML oficial da RPI 2904 (01/09/2026), revistas.inpi.gov.br/txt/RM2904.zip.
+     Números de processo, despachos, datas e protocolos são os originais. Nomes de pessoas físicas foram substituídos. -->
+<revista numero="2904" data="01/09/2026">
+  <processo numero="943447259">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260358046 de 17/07/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="JOAO TESTE PEREIRA" pais="BR" uf="SC"/>
+    </titulares>
+  </processo>
+  <processo numero="942100506">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260077262 de 20/02/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="INSTITUTO ELA POR ELAS" pais="BR" uf="DF"/>
+    </titulares>
+  </processo>
+  <processo numero="930932480">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca reproduz ou imita os seguintes registros de terceiros, sendo, portanto, irregistrável de acordo com o inciso XIX do Art. 124 da LPI: Processo 922317348 (EKKOA). Art. 124 - Não são registráveis como marca: XIX - reprodução ou imitação, no todo ou em parte, ainda que com acréscimo, de marca alheia registrada, para distinguir ou certificar produto ou serviço idêntico, semelhante ou afim, suscetível de causar confusão ou associação com marca alheia;</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="IMP BIOINSUMOS LTDA." pais="BR" uf="DF"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="01">
+        <especificacao>Adjuvantes, exceto para fins médicos ou veterinários;Bioestimulantes para plantas;Catalisadores bioquímicos;</especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="943437644">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260315646 de 26/06/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="ACRILEX TINTAS ESPECIAIS S/A" pais="BR" uf="SP"/>
+    </titulares>
+    <procurador>Vilage Marcas e Patentes  Ltda</procurador>
+  </processo>
+</revista>

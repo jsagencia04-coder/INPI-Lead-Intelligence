@@ -78,7 +78,10 @@ def pendencias(conn) -> list[dict]:
                                           'aguardando_autorizacao','elegivel_primeiro_contato')) as sc_quentes,
              (select max(numero) from rpi_editions where status = 'parsed') as ultima_rpi,
              (select count(*) from jobs where tipo in ('rpi.discover','rpi.collect','rpi.parse','rpi.semana') and status = 'dead'
-                 and finalizado_em >= now() - interval '7 days') as rpi_falhas"""
+                 and finalizado_em >= now() - interval '7 days') as rpi_falhas,
+             (select count(*) from oportunidades_servico where elegivel and situacao_processual = 'aberta'
+                 and prazo_status = 'proximo_fim' and classificacao in ('quente','morno')) as prazos_curtos,
+             (select count(*) from oportunidades_servico where elegivel and classificacao = 'quente') as servicos_quentes"""
     ).fetchone()
     atraso = rpi_atrasada(conn)
     itens = [
@@ -88,7 +91,12 @@ def pendencias(conn) -> list[dict]:
          f"Nenhuma edição detectada desde terça, 14h ({atraso['horas']} h). A verificação continua a cada 10 min." if atraso else ""),
         ("sc_quentes", "oportunidade", q["sc_quentes"],
          f"Leads quentes de Santa Catarina na RPI {q['ultima_rpi']}" if q["ultima_rpi"] else "Leads quentes de Santa Catarina",
-         "/mapa?uf=SC&temperatura=quente", "Oportunidades de oposição de SC com contato validado, prontas para abordagem."),
+         "/oportunidades?uf=SC&classificacao=quente",
+         "Manifestação à oposição ou recurso de SC com prazo aberto e contato validado, prontos para validação humana."),
+        ("prazos_curtos", "aviso", q["prazos_curtos"], "Manifestações/recursos perto do fim do prazo", "/oportunidades?prazo=proximo_fim",
+         "Prazo estimado termina em até 15 dias. Valide e decida a abordagem antes do vencimento."),
+        ("servicos_quentes", "oportunidade", q["servicos_quentes"], "Oportunidades quentes de manifestação e recurso",
+         "/oportunidades?classificacao=quente", "Prazo aberto, nenhuma petição no INPI e contato validado."),
         ("worker", "critico", q["atrasados"], "Agentes parados: agendamentos atrasados", "/operacao",
          "O worker não está executando a agenda. Verifique o serviço worker no servidor."),
         ("falhas", "critico", q["falhas_24h"], "Tarefas com falha nas últimas 24 h", "/jobs?status=dead",
@@ -120,6 +128,12 @@ def pendencias(conn) -> list[dict]:
         if n
     ]
     return sorted(out, key=lambda x: (ORDEM[x["severidade"]], -x["quantidade"]))
+
+
+def indicadores_servicos(conn) -> dict:
+    from app.api.servicos_routes import indicadores
+
+    return indicadores(conn)
 
 
 def overview(conn, dias: int = 14) -> dict:
@@ -183,4 +197,5 @@ def overview(conn, dias: int = 14) -> dict:
         ),
         "agentes": agent_stats(conn, 7),
         "pendencias": pendencias(conn),
+        "servicos": indicadores_servicos(conn),
     }

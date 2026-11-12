@@ -38,7 +38,11 @@ def describe_job(tipo: str, payload: dict | None) -> str:
     if tipo in ("rpi.collect", "rpi.parse") and "numero" in p:
         return f"{'Baixando' if tipo == 'rpi.collect' else 'Interpretando'} a RPI {p['numero']}"
     if tipo == "inpi.verify" and "numero" in p:
-        return f"Consultando o processo {p['numero']} no INPI"
+        return f"Analisando o processo {p['numero']} no INPI (titular, petições, manifestação/recurso)"
+    if tipo == "servicos.analisar":
+        return "Recalculando prazos de manifestação e recurso"
+    if tipo == "rpi.historico":
+        return "Buscando as RPIs anteriores para cruzar oposições e indeferimentos"
     if tipo == "inpi.verify_pending":
         return "Selecionando processos para consultar no INPI"
     if tipo == "cnpj.sync":

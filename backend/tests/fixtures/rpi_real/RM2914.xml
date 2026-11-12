@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Trechos reais do XML oficial da RPI 2914 (10/11/2026), revistas.inpi.gov.br/txt/RM2914.zip.
+     Números de processo, despachos, datas e protocolos são os originais. Nomes de pessoas físicas foram substituídos. -->
+<revista numero="2914" data="10/11/2026">
+  <processo numero="944040470">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260447873 de 31/08/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="CEI - CONTROLES ELETRÔNICOS INTELIGENTES LTDA" pais="BR" uf="SC"/>
+    </titulares>
+  </processo>
+  <processo numero="944032028">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260505259 de 28/09/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="Tprojetto Group LTDA" pais="BR" uf="SC"/>
+    </titulares>
+  </processo>
+  <processo numero="944032087">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260505218 de 28/09/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="Tprojetto Group LTDA" pais="BR" uf="SC"/>
+    </titulares>
+  </processo>
+  <processo numero="938028383">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca é constituida por expressão descritiva sem suficiente forma distintiva, irregistrável de acordo com o inciso VI do Art 124 da LPI. Art. 124 - Não são registráveis como marca: VI - sinal de caráter genérico, necessário, comum, vulgar ou simplesmente descritivo, quando tiver relação com o produto ou serviço a distinguir;</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="TDBUSINESS LTDA" pais="BR" uf="SC"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="41">
+        <especificacao>Assessoria, consultoria e informação em educação [instrução];Cursos livres [ensino];Serviços de educação; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="930647033">
+    <despachos>
+      <despacho codigo="IPAS024" nome="Indeferimento do pedido">
+        <texto-complementar>A marca é constituida por expressão de uso comum sem suficiente forma distintiva, irregistrável de acordo com o inciso VI do Art 124 da LPI.</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="MARIA TESTE GUERRA" pais="BR" uf="SC"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="01">
+        <especificacao>Fertilizantes; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="930932480">
+    <despachos>
+      <despacho codigo="IPAS360" nome="Notificação de recurso">
+        <texto-complementar>Recurso contra o indeferimento.</texto-complementar>
+        <protocolo numero="850260549596" data="21/10/2026" codigoServico="30001">
+          <requerente nome-razao-social="IMP BIOINSUMOS LTDA" pais="BR" uf="DF"/>
+          <procurador>TOZZINI, FREIRE, TEIXEIRA E SILVA ADVOGADOS</procurador>
+        </protocolo>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="IMP BIOINSUMOS LTDA." pais="BR" uf="DF"/>
+    </titulares>
+  </processo>
+  <processo numero="939053594">
+    <despachos>
+      <despacho codigo="IPAS029" nome="Deferimento do pedido">
+        <texto-complementar>Alterada a especificação, com a exclusão de termos genéricos ou de itens não pertencentes à classe.</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="MV EVENTOS E SERVICOS LTDA" pais="BR" uf="SC"/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="41">
+        <especificacao>PRODUTORA, CONJUNTO MUSICAL, GRUPO. TODO E QUALQUER PRODUTO, SERVIÇO OU DENOMINAÇÃO QUE TENHA A ESCRITA XUCRO CORAÇÃO.; </especificacao>
+        <status>Excluída</status>
+      </classe-nice>
+      <classe-nice codigo="41">
+        <especificacao>Filmagem em vídeo;Gravações musicais em vhs/dvd/cd [serviços de estúdio];Grupo musical;Serviços de composição musical;Sonorização.; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+  <processo numero="501881667">
+    <despachos>
+      <despacho codigo="IPAS781" nome="Deferimento parcial de designação">
+        <texto-complementar>A marca reproduz ou imita os seguintes registros de terceiros, sendo, portanto, irregistrável de acordo com o inciso XIX do Art. 124 da LPI. As anterioridades impeditivas identificadas na busca realizada em cada classe do pedido são as seguintes: NCL(12-0)18: Processo 938344382 (OMW!).</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="GSC GROUP S.P.A." pais="IT" uf=""/>
+    </titulares>
+    <lista-classe-nice>
+      <classe-nice codigo="40">
+        <especificacao>Tanning of leather; treatment of leather waste; </especificacao>
+        <status>Deferida</status>
+      </classe-nice>
+      <classe-nice codigo="18">
+        <especificacao>Tanned leather; hides; leather and imitation leather; </especificacao>
+        <status>Indeferida</status>
+      </classe-nice>
+    </lista-classe-nice>
+    <procurador>David do Nascimento Advogados Associados</procurador>
+  </processo>
+  <processo numero="945199783" data-deposito="14/09/2026">
+    <despachos>
+      <despacho codigo="IPAS009" nome="Publicação de pedido de registro para oposição (exame formal concluído)"/>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="68.842.317 FULANO TESTE" pais="BR" uf="SC"/>
+    </titulares>
+    <marca apresentacao="Nominativa" natureza="Produtos e/ou Serviço">
+      <nome>HERFLY</nome>
+    </marca>
+    <lista-classe-nice>
+      <classe-nice codigo="35">
+        <especificacao>Comércio [através de qualquer meio] de artigos do vestuário; </especificacao>
+        <status>Pendente</status>
+      </classe-nice>
+    </lista-classe-nice>
+  </processo>
+</revista>

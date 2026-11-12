@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from psycopg.types.json import Jsonb
 
+from app import servicos
 from app.config import get_settings
 from app.jobs import queue
 from app.jobs.registry import JobContext, PermanentError, handler
@@ -186,7 +187,39 @@ def parse(conn, ctx: JobContext) -> dict:
             where id = %s""",
         (Jsonb(resumo), revista.data, ed["id"]),
     )
+    # V2.4: oportunidades de serviço (oposição sofrida → manifestação; indeferimento → recurso), cruzadas com o
+    # histórico: processos desta edição que já eram acompanhados também são reanalisados (recurso, decisão...).
+    numeros = [
+        r["numero_processo"] for r in conn.execute("select numero_processo from publications where edition_id = %s", (ed["id"],))
+    ]
+    resumo["oportunidades_servico"] = servicos.sincronizar(conn, numeros=numeros)
+    resumo["analise_processual"] = servicos.analisar(conn, numeros=numeros)
+    conn.execute("update rpi_editions set stats = %s where id = %s", (Jsonb(resumo), ed["id"]))
     # Operação semanal: monta os leads e começa por Santa Catarina, sem esperar a agenda de hora em hora.
-    if s.rpi_operacao_semanal_auto:
-        queue.enqueue(conn, "rpi.semana", {"numero": numero}, dedupe_key=f"rpi.semana:{numero}", prioridade=5, parent_id=ctx.job["id"])
+    # Só para a edição mais recente (edições antigas, importadas para o histórico, não disparam a operação da semana).
+    mais_recente = conn.execute("select max(numero) m from rpi_editions where status = 'parsed'").fetchone()["m"] == numero
+    if s.rpi_operacao_semanal_auto and mais_recente:
+        queue.enqueue(
+            conn, "rpi.semana", {"numero": numero}, dedupe_key=f"rpi.semana:{numero}", prioridade=5, parent_id=ctx.job["id"]
+        )
+    elif not mais_recente:
+        # Edição antiga importada depois da mais recente: os processos dela agora são acompanhados, então a edição
+        # mais recente é relida (idempotente) para capturar o que veio depois (recurso, decisão, arquivamento).
+        ult = conn.execute("select max(numero) m from rpi_editions where status = 'parsed'").fetchone()["m"]
+        queue.enqueue(conn, "rpi.parse", {"numero": ult}, dedupe_key=f"rpi.parse:{ult}:releitura", prioridade=90)
+        queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
     return resumo
+
+
+@handler("rpi.historico")
+def historico(conn, ctx: JobContext) -> dict:
+    """Busca as edições anteriores à mais recente (padrão: 9 semanas ≈ 60 dias), para cruzar oposições e
+    indeferimentos cujo prazo ainda pode estar aberto. Idempotente: edições já importadas são ignoradas."""
+    n = int(ctx.payload.get("edicoes", 9))
+    ult = conn.execute("select max(numero) m from rpi_editions where status = 'parsed'").fetchone()["m"]
+    if ult is None:
+        return {"ignorado": "nenhuma edição processada"}
+    desde = ult - n
+    queue.enqueue(conn, "rpi.discover", {"desde": desde}, dedupe_key=f"rpi.discover:historico:{desde}", prioridade=40,
+                  parent_id=ctx.job["id"])  # fmt: skip
+    return {"desde": desde, "ate": ult - 1}

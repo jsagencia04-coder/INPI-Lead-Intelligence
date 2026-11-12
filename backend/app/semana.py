@@ -186,5 +186,14 @@ def relatorio(conn, numero: int | None = None, uf: str = "SC") -> dict | None:
         "leads_quentes": quentes[:20],
         "total_quentes": len(quentes),
         "pendencias": pend,
+        "servicos": _servicos_uf(conn, uf),
         "gerado_em": datetime.now(UTC),
     }
+
+
+def _servicos_uf(conn, uf: str) -> dict:
+    """V2.4: manifestação à oposição × recurso no estado (todas as edições com prazo ainda acompanhado)."""
+    from app.api.servicos_routes import por_estado
+
+    r = por_estado(conn, uf)
+    return {k: v for k, v in r.items() if k != "municipios"}

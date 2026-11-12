@@ -419,6 +419,10 @@ def research_free_batch(conn, ctx: JobContext) -> dict:
             -- domínio próprio na Receita (é onde a busca mais acha site e WhatsApp); depois prioridade e score
             -- território primeiro (SC, RS, PR, demais; localização pendente por último), depois os demais critérios
             order by prioridade_fila_uf(h.geo_uf),
+                     -- V2.4: oportunidades de serviço abertas (oposição sofrida / indeferimento) antes de tudo;
+                     -- histórico e "publicado para oposição" por último
+                     (l.classificacao_oposicao in ('quente','morno','pendente')
+                        or l.classificacao_recurso in ('quente','morno','pendente')) desc,
                      l.categoria_principal = 'oposicao_apresentada' desc,
                      l.procurador_confirmado desc,
                      exists (select 1 from contacts c where c.holder_id = l.holder_id and c.tipo = 'email'

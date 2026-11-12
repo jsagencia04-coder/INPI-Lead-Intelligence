@@ -104,6 +104,7 @@ REGRAS: list[tuple[str, str, str | None, str]] = [
     ("GET", "/api/audit", None, "revisor"),
     ("GET", "/api/leads-export", None, "operador"),
     ("GET", "/api/contact-central/export", None, "operador"),
+    ("GET", "/api/servicos/export", None, "operador"),
     ("GET", "/api/rpi/files", None, "operador"),
     ("PATCH", "/api/leads", None, "revisor"),
     ("POST", "/api/contacts", "/verify", "revisor"),

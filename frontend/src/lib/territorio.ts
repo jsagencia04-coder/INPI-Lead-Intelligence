@@ -1,8 +1,10 @@
+import type { ServicosUF } from "@/lib/servicos";
 /** Tipos e rótulos do Mapa de Oportunidades e da Central RPI (V2.3). */
 export type IndicadoresUF = {
   uf: string; leads: number; oposicoes_apresentadas: number; publicados_oposicao: number; com_contato_validado: number;
   quentes: number; mornos: number; em_pesquisa: number; novos_ultima_rpi: number; em_analise: number; trabalhados: number;
   localizacao_confirmada: number; localizacao_estimada: number; ordem_prioridade: number | null; taxa_qualificacao: number | null;
+  oposicoes_sofridas: number; manifestacoes_cabiveis: number; indeferimentos: number; recursos_cabiveis: number; servicos_quentes: number;
 };
 export type Mapa = { processado: boolean; ultima_edicao: number | null; processado_em: string | null; estados: IndicadoresUF[]; pendente: IndicadoresUF; total: number };
 export type LeadPrioritario = {
@@ -15,6 +17,7 @@ export type PainelUF = {
   prioritarios: LeadPrioritario[]; municipios: { chave: string; n: number }[];
   historico: { numero: number; data_publicacao: string | null; leads: number; oposicoes_apresentadas: number; publicados_oposicao: number; quentes: number; abordagens: number }[];
   pipeline: { chave: string; n: number }[];
+  servicos?: ServicosUF;
 };
 
 export type StatusEtapa = "sem_dados" | "pendente" | "em_execucao" | "concluida" | "erro";
@@ -40,12 +43,14 @@ export type Semana = {
 export type Relatorio = {
   uf: string; edicao: Operacao["edicao"]; situacao: StatusEtapa; oposicoes: number; publicados_oposicao: number; novas_oportunidades: number;
   contatos_validados: number; leads_quentes: (LeadPrioritario & { marcas: string | null })[]; total_quentes: number; pendencias: string[]; gerado_em: string;
+  servicos?: Omit<ServicosUF, "municipios">;
 };
 
 export const TEMPERATURA: Record<string, { rotulo: string; classe: string; ponto: string }> = {
   quente: { rotulo: "Quente", classe: "bg-rose-500/12 text-rose-700 dark:text-rose-300", ponto: "bg-rose-500" },
   morno: { rotulo: "Morno", classe: "bg-amber-500/15 text-amber-800 dark:text-amber-300", ponto: "bg-amber-500" },
-  em_pesquisa: { rotulo: "Em pesquisa", classe: "bg-slate-500/12 text-slate-700 dark:text-slate-300", ponto: "bg-slate-400" },
+  em_pesquisa: { rotulo: "Pendente", classe: "bg-slate-500/12 text-slate-700 dark:text-slate-300", ponto: "bg-slate-400" },
+  historico: { rotulo: "Histórico", classe: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400", ponto: "bg-zinc-400" },
 };
 export const LOCALIZACAO: Record<string, { rotulo: string; dica: string }> = {
   confirmada: { rotulo: "confirmada", dica: "Endereço do CNPJ na Receita Federal ou confirmado por uma pessoa" },

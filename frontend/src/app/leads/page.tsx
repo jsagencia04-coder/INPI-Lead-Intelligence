@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SERVICO } from "@/lib/servicos";
+import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorBox, PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
@@ -34,7 +36,7 @@ function LeadsInner() {
     router.replace(`${pathname}?${p}`);
   };
   const filtros = new URLSearchParams();
-  for (const k of ["status", "prioridade", "categoria", "revisao", "whatsapp", "temperatura", "geo_uf"]) if (sp.get(k)) filtros.set(k, sp.get(k)!);
+  for (const k of ["status", "prioridade", "categoria", "revisao", "whatsapp", "temperatura", "geo_uf", "servico", "classificacao"]) if (sp.get(k)) filtros.set(k, sp.get(k)!);
   const params = new URLSearchParams(filtros);
   if (q.trim()) params.set("q", q.trim());
   params.set("limit", String(PAGE));
@@ -65,8 +67,12 @@ function LeadsInner() {
           options={Object.fromEntries(Object.entries(categoriaLabel).filter(([k]) => !["outro", "arquivamento"].includes(k)))} />
         <Select value={sp.get("whatsapp") ?? ""} onChange={(v) => setParam("whatsapp", v)} placeholder="WhatsApp: todos"
           options={{ validado: "WhatsApp validado", candidato: "WhatsApp candidato", nenhum: "Sem WhatsApp" }} />
+        <Select value={sp.get("servico") ?? ""} onChange={(v) => setParam("servico", v)} placeholder="Serviço: todos"
+          options={{ manifestacao_oposicao: "Manifestação à oposição", recurso_indeferimento: "Recurso de indeferimento", outros: "Outros (monitoramento)" }} />
+        <Select value={sp.get("classificacao") ?? ""} onChange={(v) => setParam("classificacao", v)} placeholder="Classificação: todas"
+          options={{ quente: "Quente", morno: "Morno", pendente: "Pendente", historico: "Histórico" }} />
         <Select value={sp.get("temperatura") ?? ""} onChange={(v) => setParam("temperatura", v)} placeholder="Temperatura: todas"
-          options={{ quente: "Quente", morno: "Morno", em_pesquisa: "Em pesquisa" }} />
+          options={{ quente: "Quente", morno: "Morno", em_pesquisa: "Pendente", historico: "Histórico" }} />
         <Select value={sp.get("revisao") ?? ""} onChange={(v) => setParam("revisao", v)} placeholder="Revisão: todos"
           options={{ true: "Precisa revisão", false: "Revisados" }} />
       </div>
@@ -76,7 +82,7 @@ function LeadsInner() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Prioridade</TableHead><TableHead>Temperatura</TableHead><TableHead>Titular</TableHead><TableHead>WhatsApp</TableHead><TableHead>Categoria</TableHead>
+                <TableHead>Prioridade</TableHead><TableHead>Temperatura</TableHead><TableHead>Titular</TableHead><TableHead>WhatsApp</TableHead><TableHead>Serviço</TableHead>
                 <TableHead>Prazo estimado</TableHead><TableHead className="text-right">Proc.</TableHead>
                 <TableHead>Contatos</TableHead><TableHead>Procurador</TableHead><TableHead>Status</TableHead>
               </TableRow>
@@ -120,7 +126,12 @@ function LeadsInner() {
                         </span>
                       ) : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell>{l.categoria_principal ? categoriaLabel[l.categoria_principal] : "—"}</TableCell>
+                    <TableCell>
+                      {l.servico_principal ? (
+                        <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium", SERVICO[l.servico_principal].classe)}
+                          title={`Manifestação: ${l.classificacao_oposicao ?? "—"} · Recurso: ${l.classificacao_recurso ?? "—"}`}>{SERVICO[l.servico_principal].curto}</span>
+                      ) : <span className="text-xs text-muted-foreground">{l.categoria_principal ? categoriaLabel[l.categoria_principal] : "—"}</span>}
+                    </TableCell>
                     <TableCell className={dias !== null && dias <= 15 ? "font-medium text-destructive" : ""}>
                       {fmtDay(l.prazo_ate)}{dias !== null && <span className="ml-1 text-xs">({dias}d)</span>}
                     </TableCell>

@@ -40,7 +40,8 @@ export function OperacaoSemanal({ escuro = false }: { escuro?: boolean }) {
       </ol>
       {sc && (
         <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-4", escuro && "text-white")}>
-          {([["Oposições SC", sc.oposicoes], ["Novas em SC", sc.novas_oportunidades], ["Contatos validados", sc.contatos_validados], ["Quentes SC", sc.total_quentes]] as const).map(([k, v]) => (
+          {([["Manifestações SC", sc.servicos?.manifestacoes_cabiveis ?? sc.oposicoes], ["Recursos SC", sc.servicos?.recursos_cabiveis ?? 0],
+            ["Contatos validados", sc.contatos_validados], ["Quentes SC", sc.total_quentes]] as const).map(([k, v]) => (
             <div key={k} className={cn("rounded-xl border px-3 py-2", escuro ? "border-white/10 bg-white/[0.04]" : "bg-card")}>
               <div className={cn("text-[11px]", sub)}>{k}</div><div className="num text-lg font-semibold">{Number(v).toLocaleString("pt-BR")}</div>
             </div>

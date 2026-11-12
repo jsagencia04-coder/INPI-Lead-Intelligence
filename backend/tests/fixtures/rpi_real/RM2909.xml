@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- Trecho real do XML oficial da RPI 2909 (06/10/2026). -->
+<revista numero="2909" data="06/10/2026">
+  <processo numero="943766842">
+    <despachos>
+      <despacho codigo="IPAS423" nome="Notificação de oposição">
+        <texto-complementar>850260418671 de 17/08/2026</texto-complementar>
+      </despacho>
+    </despachos>
+    <titulares>
+      <titular nome-razao-social="NANOVETORES TECNOLOGIA S.A." pais="BR" uf="SC"/>
+    </titulares>
+  </processo>
+</revista>

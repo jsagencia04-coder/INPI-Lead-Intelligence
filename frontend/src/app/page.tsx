@@ -9,6 +9,7 @@ import {
 import { BarList, Donut, Legenda, SERIE, TrendChart } from "@/components/charts";
 import { KpiCard, Secao } from "@/components/kpi-card";
 import { OperacaoSemanal } from "@/components/operacao-semanal";
+import { ServicosResumo } from "@/components/servicos-resumo";
 import { ErrorBox } from "@/components/page-header";
 import { useApi } from "@/components/use-api";
 import { SEVERIDADE, type Pendencia } from "@/lib/alerts";
@@ -219,6 +220,11 @@ export default function Dashboard() {
         <KpiCard rotulo="Em negociação" valor={k ? n(k.em_negociacao) : "…"} icon={Handshake} tom="rose" href="/pipeline?etapa=interessado"
           contexto={k && <><b className="num text-foreground">{n(k.fechados)}</b> fechados · conversão {k.taxa_conversao === null ? "—" : `${k.taxa_conversao}%`}</>} />
       </div>
+
+      <Secao titulo="Frentes comerciais" subtitulo="Marcas que sofreram oposição (manifestação) × marcas indeferidas (recurso) · números separados"
+        icon={Briefcase} acao={<Link href="/oportunidades" className="text-xs font-medium text-primary hover:underline">Oportunidades de serviço</Link>}>
+        <ServicosResumo />
+      </Secao>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Secao titulo="Operação semanal da RPI" subtitulo="Terça-feira: detecção, extração e Santa Catarina primeiro" icon={Radar} className="xl:col-span-2"

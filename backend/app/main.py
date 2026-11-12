@@ -18,6 +18,7 @@ from app.api import (
     office_routes,
     pipeline_routes,
     rpi_routes,
+    servicos_routes,
     whatsapp_routes,
 )
 from app.api.routes import public, router
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(consent_routes.router)
     app.include_router(pipeline_routes.router)
     app.include_router(mapa_routes.router)
+    app.include_router(servicos_routes.router)
     app.include_router(whatsapp_routes.router)
     app.include_router(whatsapp_routes.webhook)
     app.include_router(office_routes.router)

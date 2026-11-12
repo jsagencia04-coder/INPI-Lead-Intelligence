@@ -72,6 +72,9 @@ export type LeadListItem = {
   n_validados: number;
   whatsapp: string | null;
   whatsapp_status: "confirmado" | "validado" | "candidato" | null;
+  servico_principal?: "manifestacao_oposicao" | "recurso_indeferimento" | null;
+  classificacao_oposicao?: string | null;
+  classificacao_recurso?: string | null;
 };
 
 export type Paged<T> = { total: number; items: T[] };

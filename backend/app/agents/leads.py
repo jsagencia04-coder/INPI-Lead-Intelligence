@@ -14,18 +14,22 @@ from datetime import date, timedelta
 
 from psycopg.types.json import Jsonb
 
-from app import db, llm
+from app import db, llm, servicos
 from app.config import get_settings
 from app.jobs import queue
 from app.jobs.registry import JobContext, handler
 from app.validation import check_contact, host_of
 from app.whatsapp import CANDIDATO_OBS, best_whatsapp, derive_candidates, evidencia_indica_whatsapp
 
-# Oposição apresentada (categoria A) é a oportunidade principal; pedido publicado para oposição é a categoria B.
-CAT_PESO = {"oposicao_apresentada": 45, "indeferimento": 40, "exigencia": 35, "extincao_prorrogacao": 30, "oposicao": 20}
-CAT_ORDEM = ["oposicao_apresentada", "indeferimento", "exigencia", "extincao_prorrogacao", "oposicao"]
-# LPI: prazos de 60 dias (estimativa; confirmar no INPI)
-PRAZO_DIAS = {"oposicao_apresentada": 60, "indeferimento": 60, "exigencia": 60, "oposicao": 60}
+# V2.4: as duas fontes de receita são (1) marca que SOFREU oposição → manifestação e (2) indeferimento → recurso.
+# "Publicado para oposição" (B) não é oposição apresentada: fica por último, só como histórico/monitoramento.
+CAT_PESO = {"oposicao_apresentada": 45, "indeferimento": 42, "deferimento_parcial": 30, "exigencia": 25,
+            "extincao_prorrogacao": 20, "oposicao": 5}  # fmt: skip
+CAT_ORDEM = ["oposicao_apresentada", "indeferimento", "deferimento_parcial", "exigencia", "extincao_prorrogacao", "oposicao"]
+TIPO_CAT = {"oposicao": "oposicao_apresentada", "indeferimento": "indeferimento", "deferimento_parcial": "deferimento_parcial"}
+TEMP_DA_CLASSE = {"quente": "quente", "morno": "morno", "pendente": "em_pesquisa", "historico": "historico"}
+# LPI: prazos de 60 dias (estimativa; confirmar no INPI). Para os dois pipelines o prazo exato vem de app.servicos.
+PRAZO_DIAS = {"oposicao_apresentada": 60, "indeferimento": 60, "deferimento_parcial": 60, "exigencia": 60, "oposicao": 60}
 # Peso comercial por UF, pela ordem configurada em uf_prioridade (SC, RS, PR...)
 UF_PESO = {1: 15, 2: 10, 3: 8}
 STATUS_HUMANOS = ("aprovado", "contatado", "convertido")
@@ -141,14 +145,23 @@ ROTULO_CAT = {
     "oposicao_apresentada": "oposição apresentada por terceiro",
     "oposicao": "pedido publicado para oposição",
     "indeferimento": "indeferimento",
+    "deferimento_parcial": "deferimento parcial",
     "exigencia": "exigência",
     "extincao_prorrogacao": "extinção por falta de prorrogação",
 }
 
 
 def temperatura(
-    *, categoria: str | None, dias_publicacao: int | None, contato_validado: bool, contatos_total: int,
-    whatsapp_status: str | None, geo_status: str, cnpj_status: str, abordado: bool, procurador_confirmado: bool,
+    *,
+    categoria: str | None,
+    dias_publicacao: int | None,
+    contato_validado: bool,
+    contatos_total: int,
+    whatsapp_status: str | None,
+    geo_status: str,
+    cnpj_status: str,
+    abordado: bool,
+    procurador_confirmado: bool,
     uf: str | None,
 ) -> tuple[str, list[str]]:
     """Quente / morno / em pesquisa, com os motivos. Oposição sozinha NÃO torna o lead validado."""
@@ -185,6 +198,36 @@ def prioridade(score: float) -> str:
     return "alta" if score >= 60 else "media" if score >= 40 else "baixa"
 
 
+def _pipelines(conn, ops: list[dict], contatos_total: int, contato_validado: bool, abordado: bool) -> dict | None:
+    """Classifica cada oportunidade de serviço do titular e resume por pipeline (manifestação × recurso)."""
+    if not ops:
+        return None
+    res: dict[str, list[tuple[str, list[str], dict]]] = {}
+    for op in ops:
+        c, mot = servicos.classificar(op, contatos_total=contatos_total, contato_validado=contato_validado, abordado=abordado)
+        conn.execute(
+            "update oportunidades_servico set classificacao = %s, classificacao_motivos = %s where id = %s and "
+            "(classificacao, classificacao_motivos) is distinct from (%s, %s::jsonb)",
+            (c, Jsonb(mot), op["id"], c, Jsonb(mot)),
+        )
+        res.setdefault(op["servico"], []).append((c, mot, op))
+    c_op = servicos.melhor([c for c, _, _ in res.get("manifestacao_oposicao", [])])
+    c_rec = servicos.melhor([c for c, _, _ in res.get("recurso_indeferimento", [])])
+    todos = [x for v in res.values() for x in v]
+    # melhor oportunidade: classe; empate → prazo mais próximo
+    top = min(todos, key=lambda x: (servicos.ORDEM_CLASSE[x[0]], x[2]["prazo_fim"] or date.max))
+    abertos = [x[2]["prazo_fim"] for x in todos if x[2]["situacao_processual"] == "aberta" and x[2]["prazo_fim"]]
+    return {
+        "oposicao": c_op,
+        "recurso": c_rec,
+        "melhor": top[0],
+        "motivos": top[1],
+        "principal": top[2]["servico"],
+        "categoria": TIPO_CAT[top[2]["tipo_decisao"]],
+        "prazo": min(abertos) if abertos else None,
+    }
+
+
 @handler("leads.build")
 def build(conn, ctx: JobContext) -> dict:
     hoje = date.today()
@@ -213,6 +256,16 @@ def build(conn, ctx: JobContext) -> dict:
         if r["data_publicacao"]:
             g.setdefault("datas", []).append(r["data_publicacao"])
         g["classes"] += r["classes_nice"] or []
+
+    # Oportunidades de serviço (pipelines 1 e 2) de cada titular
+    ops_por_holder: dict[int, list[dict]] = {}
+    for r in conn.execute(
+        """select ph.holder_id, os.* from oportunidades_servico os
+             join process_holders ph on ph.numero_processo = os.numero_processo
+             join opportunities o on o.numero_processo = os.numero_processo and o.edition_id = os.edition_id
+                                 and o.despacho_codigo = os.despacho_codigo and o.status = 'elegivel'"""
+    ).fetchall():
+        ops_por_holder.setdefault(r["holder_id"], []).append(r)
 
     # Deduplicação: titulares diferentes com o mesmo CNPJ viram um lead só (o de menor id)
     principal_por_cnpj: dict[str, int] = {}
@@ -274,6 +327,13 @@ def build(conn, ctx: JobContext) -> dict:
             ).fetchone()
             is not None
         )
+        contato_ok = bool(cont["val"]) or wa_status in ("confirmado", "validado")
+        pipe = _pipelines(conn, ops_por_holder.get(hid, []), cont["tot"], contato_ok, abordado)
+        if pipe:
+            categoria = pipe["categoria"]
+            if pipe["prazo"]:
+                prazo = pipe["prazo"]
+                dias = (prazo - hoje).days
         score, det = compute_score(
             categoria=categoria,
             dias_restantes=dias,
@@ -301,6 +361,8 @@ def build(conn, ctx: JobContext) -> dict:
             procurador_confirmado=confirmado,
             uf=hg["geo_uf"],
         )
+        if pipe:
+            temp, motivos_temp = TEMP_DA_CLASSE[pipe["melhor"]], pipe["motivos"]
         cnae = None
         if cnpj:
             est = conn.execute("select cnae_principal from cnpj_estabelecimentos where cnpj = %s", (cnpj,)).fetchone()
@@ -329,7 +391,8 @@ def build(conn, ctx: JobContext) -> dict:
             """update leads set status = %s, motivo_descarte = %s, score = %s, score_detalhes = %s, prioridade = %s,
                       segmento = %s, categoria_principal = %s, prazo_ate = %s, procurador_confirmado = %s,
                       precisa_revisao = (revisado_por is null or %s > 0), whatsapp = %s, whatsapp_status = %s,
-                      temperatura = %s, temperatura_motivos = %s
+                      temperatura = %s, temperatura_motivos = %s, servico_principal = %s,
+                      classificacao_oposicao = %s, classificacao_recurso = %s
                 where id = %s""",
             (
                 status,
@@ -346,6 +409,9 @@ def build(conn, ctx: JobContext) -> dict:
                 wa_status,
                 temp,
                 Jsonb(motivos_temp),
+                pipe["principal"] if pipe else None,
+                pipe["oposicao"] if pipe else None,
+                pipe["recurso"] if pipe else None,
                 lead["id"],
             ),
         )
@@ -401,8 +467,13 @@ def validate_contacts(conn, ctx: JobContext) -> dict:
 
 # ------------------------------------------------------------------ Agente 06
 ABORDAGEM = {
+    "oposicao_apresentada": "Um terceiro apresentou oposição contra o pedido (notificação publicada em {data}). O titular "
+    "pode se manifestar em até 60 dias (prazo estimado: {prazo}). Abordagem: oferecer a MANIFESTAÇÃO À OPOSIÇÃO, "
+    "defesa do pedido de registro.",
+    "deferimento_parcial": "O pedido foi deferido parcialmente em {data} (itens excluídos ou indeferidos). Pode caber "
+    "recurso em até 60 dias (prazo estimado: {prazo}), a validar. Abordagem: oferecer análise da decisão e recurso.",
     "indeferimento": "O pedido foi indeferido em {data}. Cabe recurso em até 60 dias (prazo estimado: {prazo}). "
-    "Abordagem: oferecer análise do indeferimento e elaboração do recurso.",
+    "Abordagem: oferecer análise do indeferimento e elaboração do RECURSO ADMINISTRATIVO.",
     "exigencia": "Há uma exigência publicada em {data}, com prazo estimado de cumprimento até {prazo}. "
     "Abordagem: oferecer o cumprimento da exigência antes do arquivamento.",
     "oposicao": "O pedido foi publicado para oposição em {data} (prazo estimado de oposição até {prazo}). "

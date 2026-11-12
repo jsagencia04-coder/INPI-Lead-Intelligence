@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CLASSE, MEDIDA, PRAZO, SERVICO, TIPO_DECISAO, textoPrazo, type Oportunidade } from "@/lib/servicos";
+import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorBox, PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
@@ -118,6 +120,48 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
         </Section>
 
         <WhatsappCard lead={lead} podeProspectar={podeProspectar} onChange={reload} />
+
+        {lead.servicos?.length > 0 && (
+          <Section title="Serviço a oferecer" description="O titular deste lead SOFREU a oposição ou teve o pedido indeferido. Quem se opôs é só informação complementar.">
+            <div className="space-y-3">
+              {lead.servicos.map((o: Oportunidade) => (
+                <div key={o.id} className={cn("rounded-xl border p-3", o.situacao_processual === "historico" && "opacity-75")} style={{ boxShadow: `inset 3px 0 0 ${SERVICO[o.servico].hex}` }}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", SERVICO[o.servico].classe)}>{SERVICO[o.servico].rotulo}</span>
+                    {o.classificacao && <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", CLASSE[o.classificacao].classe)} title={CLASSE[o.classificacao].dica}>{CLASSE[o.classificacao].rotulo}</span>}
+                    <span className="font-mono text-xs">{o.numero_processo}</span>
+                    <span className="text-xs text-muted-foreground">{o.marca_nome ?? "marca não informada"} · {TIPO_DECISAO[o.tipo_decisao]} · RPI {o.rpi_numero} ({fmtDay(o.data_publicacao)}, {o.despacho_codigo})</span>
+                  </div>
+                  <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                    <div><dt className="inline text-muted-foreground">Prazo estimado: </dt><dd className="inline font-medium">{o.prazo_fim ? fmtDay(o.prazo_fim) : "a validar"}</dd>
+                      <span className={cn("ml-2 text-xs", PRAZO[o.prazo_status].classe)}>{textoPrazo(o)}</span></div>
+                    <div><dt className="inline text-muted-foreground">{o.servico === "manifestacao_oposicao" ? "Manifestação" : "Recurso"}: </dt>
+                      <dd className="inline font-medium">{MEDIDA[o.medida_status]}</dd>{o.medida_protocolo && <span className="ml-1 text-xs text-muted-foreground">protocolo {o.medida_protocolo} de {fmtDay(o.medida_data)}</span>}</div>
+                    {o.servico === "manifestacao_oposicao" && <div><dt className="inline text-muted-foreground">Quem se opôs: </dt><dd className="inline">{o.opositor_nome ?? "ainda não identificado (a RPI não informa)"}</dd>
+                      {o.oposicao_protocolo && <span className="ml-1 text-xs text-muted-foreground">oposição {o.oposicao_protocolo} de {fmtDay(o.oposicao_data)}</span>}</div>}
+                    {o.decisao_posterior && <div><dt className="inline text-muted-foreground">Decisão posterior: </dt><dd className="inline">{o.decisao_posterior}</dd></div>}
+                    {o.validacao_juridica && <div className="text-orange-700 dark:text-orange-300 sm:col-span-2">Necessita validação jurídica: {o.validacao_motivo}</div>}
+                    {o.fundamentacao && <div className="sm:col-span-2"><dt className="text-muted-foreground">Fundamentação publicada</dt><dd className="line-clamp-3 text-xs">{o.fundamentacao}</dd></div>}
+                  </dl>
+                  {o.classificacao_motivos?.length > 0 && <ul className="mt-2 flex flex-wrap gap-1.5">{o.classificacao_motivos.map((m) => <li key={m} className="rounded-md bg-muted px-2 py-0.5 text-[11px]">{m}</li>)}</ul>}
+                  <details className="mt-2 text-[11px] text-muted-foreground"><summary className="cursor-pointer">Fontes</summary>
+                    <p>Prazo: {o.prazo_fonte}</p>{o.medida_fonte && <p>Medida: {o.medida_fonte}</p>}{o.opositor_fonte && <p>Opositor: {o.opositor_fonte}</p>}
+                  </details>
+                </div>
+              ))}
+              {lead.peticoes?.length > 0 && (
+                <details className="text-sm"><summary className="cursor-pointer text-xs font-medium text-muted-foreground">Petições do processo no pePI ({lead.peticoes.length})</summary>
+                  <ul className="mt-2 divide-y rounded-lg border text-xs">
+                    {lead.peticoes.map((pt: { protocolo: string; numero_processo: string; data: string | null; servico: string | null; descricao: string | null; cliente: string | null }) => (
+                      <li key={pt.protocolo} className="flex flex-wrap gap-x-3 px-3 py-1.5"><span className="font-mono">{pt.numero_processo}</span><span className="font-mono">{pt.protocolo}</span>
+                        <span>{fmtDay(pt.data)}</span><span className="font-medium">{pt.servico} {pt.descricao}</span><span className="text-muted-foreground">{pt.cliente}</span></li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          </Section>
+        )}
 
         <Section title="Processos" description="Número, marca, despacho, situação e procurador, com a fonte de cada dado">
           <Table>

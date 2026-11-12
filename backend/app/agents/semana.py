@@ -3,13 +3,14 @@
 rpi.semana        disparado ao fim da leitura da RPI: monta os leads e distribui o trabalho por estado,
                   com prioridade real na fila (SC primeiro, depois RS, PR e os demais na ordem configurada).
 rpi.semana_check  a cada 10 min: registra os marcos (primeiros leads quentes de SC, conclusão) e emite eventos.
+servicos.analisar a cada 6 h: prazos de manifestação/recurso mudam com o calendário; reanalisa e reclassifica.
 """
 
 from datetime import UTC, datetime
 
 from psycopg.types.json import Jsonb
 
-from app import semana
+from app import semana, servicos
 from app.agents.leads import build as leads_build
 from app.jobs import queue
 from app.jobs.registry import JobContext, PermanentError, handler
@@ -39,7 +40,8 @@ def rpi_semana(conn, ctx: JobContext) -> dict:
            on conflict (edition_id) do update set execucoes = rpi_operacoes.execucoes + 1""",
         (ed["id"],),
     )
-    # 1. leads e localização na hora (não espera a agenda de hora em hora)
+    # 1. oportunidades de serviço (manifestação / recurso) analisadas e leads montados na hora
+    analise = servicos.analisar(conn, so_abertas=True)
     montagem = leads_build(conn, ctx)
     # 1b. com a base da Receita ligada, cruza os titulares novos antes da pesquisa (traz CNPJ, UF confirmada e domínio)
     if conn.execute("select 1 from schedules where nome = 'cnpj-receita' and ativo").fetchone():
@@ -57,7 +59,11 @@ def rpi_semana(conn, ctx: JobContext) -> dict:
              join leads l on l.holder_id = ph.holder_id and l.mesclado_em is null and l.status <> 'descartado'
              join holders h on h.id = l.holder_id
              join processes p on p.numero_processo = o.numero_processo
-            where o.edition_id = %s and o.status = 'elegivel' and p.procurador_status <> 'com_procurador'
+            where o.status = 'elegivel' and p.procurador_status <> 'com_procurador'
+              and (o.edition_id = %s
+                   -- V2.4: oposições e indeferimentos de edições anteriores com prazo ainda aberto também entram
+                   or exists (select 1 from oportunidades_servico os where os.numero_processo = o.numero_processo
+                                and os.elegivel and os.situacao_processual = 'aberta'))
             order by pfila""",
         (ed["id"],),
     ).fetchall()
@@ -75,7 +81,7 @@ def rpi_semana(conn, ctx: JobContext) -> dict:
             c["pesquisas"] += 1
     conn.execute(
         "update rpi_operacoes set priorizada_em = now(), detalhes = detalhes || %s where edition_id = %s",
-        (Jsonb({"distribuicao": por_uf, "montagem": montagem}), ed["id"]),
+        (Jsonb({"distribuicao": por_uf, "montagem": montagem, "analise_servicos": analise}), ed["id"]),
     )
     conn.execute(
         "select office_emit('operacao.priorizada', 'rpi.semana', %s, %s, %s, %s)",
@@ -110,3 +116,12 @@ def rpi_semana_check(conn, ctx: JobContext) -> dict:
         marcos["concluida"] = True
     conn.execute("update rpi_operacoes set ultima_verificacao_em = %s where edition_id = %s", (datetime.now(UTC), ed["id"]))
     return {"numero": st["edicao"]["numero"], "trabalhando_em": st["trabalhando_em"], "marcos": marcos}
+
+
+@handler("servicos.analisar")
+def servicos_analisar(conn, ctx: JobContext) -> dict:
+    """Agente de Análise Processual: sincroniza as oportunidades de serviço e recalcula prazos e situação."""
+    novas = servicos.sincronizar(conn)
+    res = servicos.analisar(conn, so_abertas=not ctx.payload.get("todas"))
+    queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
+    return {"sincronizadas": novas} | res

@@ -285,6 +285,16 @@ def test_lead_quente_de_sc_gera_marco_alerta_e_relatorio(conn, mundo):  # noqa: 
     enqueue("leads.build")
     drain()
     lead = conn.execute("select * from leads where holder_id = %s", (h["id"],)).fetchone()
+    # V2.4: sem conferir as petições no INPI ainda não é quente (pode já existir manifestação)
+    assert lead["temperatura"] == "morno" and lead["classificacao_oposicao"] == "morno"
+    assert any("petições ainda não conferidas" in m for m in lead["temperatura_motivos"])
+    conn.execute(
+        """insert into process_peticoes (protocolo, numero_processo, data, servico, descricao, cliente, fonte_url)
+           values ('850200000002', '950000002', '2026-06-01', '389', 'Pedido de registro de marca', 'CAFE SERRANO LTDA', 'pepi')"""
+    )
+    enqueue("servicos.analisar")
+    drain()
+    lead = conn.execute("select * from leads where holder_id = %s", (h["id"],)).fetchone()
     assert lead["temperatura"] == "quente" and lead["score_detalhes"]["estado"] == 15
     assert "Contato comercial validado" in lead["temperatura_motivos"]
     # nenhum contato inventado: os demais titulares de SC seguem sem contato

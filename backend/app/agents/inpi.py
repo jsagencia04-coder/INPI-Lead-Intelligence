@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 
 from psycopg.types.json import Jsonb
 
-from app import db
+from app import db, servicos
 from app.config import get_settings
 from app.inpi.pepi import PepiBlocked, PepiClient
 from app.jobs import queue
@@ -27,7 +27,14 @@ from app.storage import get_storage, sha256_of
 log = logging.getLogger("agent.inpi")
 _client: PepiClient | None = None
 
-URGENCIA = {"indeferimento": 1, "exigencia": 2, "oposicao": 3, "extincao_prorrogacao": 4}
+URGENCIA = {
+    "oposicao_apresentada": 0,
+    "indeferimento": 1,
+    "deferimento_parcial": 2,
+    "exigencia": 3,
+    "oposicao": 5,
+    "extincao_prorrogacao": 4,
+}
 
 
 def _pepi() -> PepiClient:
@@ -50,19 +57,26 @@ def verify_pending(conn, ctx: JobContext) -> dict:
     rows = conn.execute(
         """
         select p.numero_processo, min(case o.categoria when 'oposicao_apresentada' then 0 when 'indeferimento' then 1
-                                       when 'exigencia' then 2 when 'oposicao' then 3 else 4 end) as urg, max(e.numero) as rpi,
-               min(prioridade_fila_uf(h.geo_uf)) as pfila
+                                       when 'deferimento_parcial' then 2 when 'exigencia' then 3 when 'oposicao' then 5
+                                       else 4 end) as urg, max(e.numero) as rpi,
+               min(prioridade_fila_uf(h.geo_uf)) as pfila,
+               bool_or(exists (select 1 from oportunidades_servico os where os.numero_processo = p.numero_processo
+                                  and os.elegivel and os.situacao_processual = 'aberta')) as aberta
           from processes p
           join opportunities o on o.numero_processo = p.numero_processo and o.status = 'elegivel'
           join rpi_editions e on e.id = o.edition_id
           left join process_holders ph on ph.numero_processo = p.numero_processo
           left join holders h on h.id = ph.holder_id
          where p.procurador_status <> 'com_procurador'
-           and (p.verificado_inpi_em is null or p.verificado_inpi_em < now() - make_interval(days => %s))
+           and (p.verificado_inpi_em is null or p.verificado_inpi_em < now() - make_interval(days => %s)
+                -- oportunidade de serviço aberta publicada depois da última consulta: conferir petições de novo
+                or exists (select 1 from oportunidades_servico os where os.numero_processo = p.numero_processo
+                              and os.elegivel and os.situacao_processual = 'aberta'
+                              and os.data_publicacao > p.verificado_inpi_em::date))
            and not exists (select 1 from jobs j where j.tipo = 'inpi.verify' and j.status in ('queued','running')
                              and j.payload->>'numero' = p.numero_processo)
          group by p.numero_processo
-         order by min(prioridade_fila_uf(h.geo_uf)), rpi desc, urg, p.numero_processo
+         order by min(prioridade_fila_uf(h.geo_uf)), aberta desc, urg, rpi desc, p.numero_processo
          limit %s
         """,
         (s.pepi_reverificar_dias, ctx.payload.get("limite", s.pepi_lote_por_execucao)),
@@ -140,6 +154,19 @@ def verify(conn, ctx: JobContext) -> dict:
     ).fetchone()
     fonte = f"inpi:{v['id']}"
 
+    # Petições (manifestação, recurso, oposição e quem se opôs): histórico preservado por protocolo
+    for pt in res.peticoes:
+        conn.execute(
+            """insert into process_peticoes (protocolo, numero_processo, data, servico, descricao, cliente, fonte_url,
+                                             verification_id)
+               values (%s,%s,%s,%s,%s,%s,%s,%s)
+               on conflict (protocolo) do update set visto_em = now(), verification_id = excluded.verification_id,
+                 servico = coalesce(excluded.servico, process_peticoes.servico),
+                 descricao = coalesce(excluded.descricao, process_peticoes.descricao),
+                 cliente = coalesce(excluded.cliente, process_peticoes.cliente)""",
+            (pt["protocolo"], numero, pt["data"], pt["servico"], pt["descricao"], pt["cliente"], res.fonte_url, v["id"]),
+        )
+
     if res.resultado == "nao_encontrado":
         conn.execute("update processes set verificado_inpi_em = now() where numero_processo = %s", (numero,))
         return {"numero": numero, "resultado": "nao_encontrado"}
@@ -214,6 +241,8 @@ def verify(conn, ctx: JobContext) -> dict:
 
     if revisao:
         conn.execute("insert into review_tasks (entidade, entidade_id, motivo) values ('process', %s, %s)", (numero, revisao))
+    servicos.sincronizar(conn, numeros=[numero])  # elegibilidade (procurador) acompanha a oportunidade da RPI
+    servicos.analisar(conn, numeros=[numero])  # manifestação/recurso já protocolados? quem se opôs?
     queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
     return {
         "numero": numero,

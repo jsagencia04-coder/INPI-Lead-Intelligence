@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, Flame, Gavel, MapPin, MessageCircle, Newspaper, Search, Sparkles, Users, X } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, Flame, Gavel, MapPin, MessageCircle, Search, Sparkles, Users, X, Scale } from "lucide-react";
 import { BrasilMap } from "@/components/brasil-map";
 import { BarList, SERIE } from "@/components/charts";
 import { Secao } from "@/components/kpi-card";
@@ -18,15 +18,20 @@ import { BRASIL_UFS } from "@/lib/brasil-geo";
 import { categoriaLabel, fmtDay } from "@/lib/format";
 import { ETAPAS } from "@/lib/pipeline";
 import { LOCALIZACAO, TEMPERATURA, type IndicadoresUF, type Mapa, type PainelUF } from "@/lib/territorio";
+import { SERVICO, type Servico, type ServicosUF } from "@/lib/servicos";
 import { cn } from "@/lib/utils";
 import { formatWhats } from "@/lib/whatsapp";
 import type { Paged } from "@/lib/types";
 
 const NOME = Object.fromEntries([...BRASIL_UFS.map((u) => [u.uf, u.nome]), ["PENDENTE", "Localização pendente"]]);
 const METRICAS: Record<string, { rotulo: string; campo: keyof IndicadoresUF }> = {
+  oposicoes_sofridas: { rotulo: "Marcas que sofreram oposição", campo: "oposicoes_sofridas" },
+  manifestacoes_cabiveis: { rotulo: "Manifestações cabíveis", campo: "manifestacoes_cabiveis" },
+  indeferimentos: { rotulo: "Marcas indeferidas", campo: "indeferimentos" },
+  recursos_cabiveis: { rotulo: "Recursos cabíveis", campo: "recursos_cabiveis" },
+  servicos_quentes: { rotulo: "Oportunidades quentes", campo: "servicos_quentes" },
   leads: { rotulo: "Leads", campo: "leads" },
   quentes: { rotulo: "Leads quentes", campo: "quentes" },
-  oposicoes_apresentadas: { rotulo: "Oposições apresentadas", campo: "oposicoes_apresentadas" },
   com_contato_validado: { rotulo: "Com contato validado", campo: "com_contato_validado" },
   novos_ultima_rpi: { rotulo: "Novos na última RPI", campo: "novos_ultima_rpi" },
 };
@@ -76,6 +81,27 @@ function LocalizacaoPendente({ holderId, onFeito }: { holderId: number; onFeito:
   );
 }
 
+function OportunidadesUF({ uf, s }: { uf: string; s: ServicosUF }) {
+  const bloco = (serv: Servico, itens: [string, number, string][]) => (
+    <Link href={`/oportunidades?servico=${serv}&uf=${uf}`} className="block rounded-xl border p-3 transition-colors hover:bg-accent/40" style={{ boxShadow: `inset 3px 0 0 ${SERVICO[serv].hex}` }}>
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">{serv === "manifestacao_oposicao" ? <Scale className="size-3.5" /> : <Gavel className="size-3.5" />}{SERVICO[serv].rotulo}</div>
+      <dl className="grid grid-cols-3 gap-2">
+        {itens.map(([k, v, d]) => <div key={k} title={d}><dt className="truncate text-[10px] text-muted-foreground">{k}</dt><dd className="num text-lg font-semibold leading-tight">{n(v)}</dd></div>)}
+      </dl>
+    </Link>
+  );
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs"><span className="eyebrow text-primary">{NOME[uf]} · oportunidades comerciais</span>
+        <span className="text-muted-foreground">{n(s.contatos_encontrados)} com contato · <b className="text-rose-600">{n(s.leads_quentes)} quente(s)</b></span></div>
+      {bloco("manifestacao_oposicao", [["Sofreram oposição", s.oposicoes_sofridas, "marcas cujo pedido recebeu oposição de terceiro"],
+        ["Cabíveis", s.manifestacoes_cabiveis, "prazo aberto e nenhuma manifestação identificada"], ["Já protocoladas", s.manifestacoes_protocoladas, "manifestação já apresentada"]])}
+      {bloco("recurso_indeferimento", [["Indeferidas", s.indeferimentos, "indeferimentos e deferimentos parciais"],
+        ["Cabíveis", s.recursos_cabiveis, "prazo aberto e nenhum recurso identificado"], ["Já protocolados", s.recursos_protocolados, "recurso já apresentado"]])}
+    </div>
+  );
+}
+
 function Painel({ uf, q, onFechar }: { uf: string; q: string; onFechar: () => void }) {
   const { data: p, error } = useApi<PainelUF>(`/api/mapa/${uf}?${q}`);
   const i = p?.indicadores;
@@ -94,13 +120,12 @@ function Painel({ uf, q, onFechar }: { uf: string; q: string; onFechar: () => vo
       <ErrorBox error={error} />
       {!i ? <div className="h-64 animate-pulse rounded-xl bg-muted" /> : (
         <>
+          {p.servicos && <OportunidadesUF uf={uf} s={p.servicos} />}
           <div className="grid grid-cols-2 gap-2">
             <Indicador icon={Users} rotulo="Leads identificados" valor={n(i.leads)} sub={`${n(i.titulares)} titulares · ${n(i.empresas)} empresas`} cor="bg-indigo-500/10 text-indigo-600" />
-            <Indicador icon={Gavel} rotulo="Oposições apresentadas" valor={n(i.oposicoes_apresentadas)} sub="categoria A" cor="bg-rose-500/10 text-rose-600" />
-            <Indicador icon={Newspaper} rotulo="Publicados p/ oposição" valor={n(i.publicados_oposicao)} sub="categoria B" cor="bg-amber-500/10 text-amber-700" />
-            <Indicador icon={Sparkles} rotulo="Novos na última RPI" valor={n(i.novos_ultima_rpi)} cor="bg-sky-500/10 text-sky-600" />
+            <Indicador icon={Sparkles} rotulo="Novos na última RPI" valor={n(i.novos_ultima_rpi)} sub={i.publicados_oposicao ? `${n(i.publicados_oposicao)} só “publicado p/ oposição” (histórico)` : undefined} cor="bg-sky-500/10 text-sky-600" />
             <Indicador icon={MessageCircle} rotulo="Contato validado" valor={n(i.com_contato_validado)} cor="bg-emerald-500/10 text-emerald-600" />
-            <Indicador icon={Flame} rotulo="Prioritários (quentes)" valor={n(i.quentes)} sub={`${n(i.mornos)} mornos · ${n(i.em_pesquisa)} em pesquisa`} cor="bg-rose-500/10 text-rose-600" />
+            <Indicador icon={Flame} rotulo="Prioritários (quentes)" valor={n(i.quentes)} sub={`${n(i.mornos)} mornos · ${n(i.em_pesquisa)} pendentes`} cor="bg-rose-500/10 text-rose-600" />
           </div>
           <div>
             <div className="mb-1 flex justify-between text-xs"><span className="font-medium">Situação comercial</span><span className="text-muted-foreground">{n(i.em_analise)} em análise · {n(i.trabalhados)} já trabalhados</span></div>
@@ -182,7 +207,8 @@ function MapaInner() {
   const [temperatura, setTemperatura] = useState(sp.get("temperatura") ?? "");
   const [desde, setDesde] = useState("");
   const [ate, setAte] = useState("");
-  const [metrica, setMetrica] = useState("leads");
+  const [prazo, setPrazo] = useState(sp.get("prazo") ?? "");
+  const [metrica, setMetrica] = useState("oposicoes_sofridas");
   const [modo, setModo] = useState<"absoluto" | "normalizado">("absoluto");
   const [busca, setBusca] = useState("");
   const [offset, setOffset] = useState(0);
@@ -193,6 +219,7 @@ function MapaInner() {
   if (temperatura) f.set("temperatura", temperatura);
   if (desde) f.set("desde", desde);
   if (ate) f.set("ate", ate);
+  if (prazo) f.set("prazo", prazo);
   const { data: m, error, reload } = useApi<Mapa>(`/api/mapa?${f}`, 60000);
   const { data: eds } = useApi<{ edicoes: { numero: number; data_publicacao: string | null }[] }>("/api/rpi-semana");
 
@@ -231,9 +258,11 @@ function MapaInner() {
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">Publicada de<Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-36" /></label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">até<Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="w-36" /></label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">Situação processual<Select value={categoria} onChange={(v) => { setCategoria(v); setOffset(0); }} placeholder="Todas"
-          options={{ oposicao_apresentada: "Oposição apresentada (A)", oposicao: "Publicado para oposição (B)", indeferimento: "Indeferimento", exigencia: "Exigência", extincao_prorrogacao: "Extinção" }} /></label>
+          options={{ oposicao_apresentada: "Sofreu oposição (manifestação)", indeferimento: "Indeferimento (recurso)", deferimento_parcial: "Deferimento parcial (recurso)", exigencia: "Exigência", extincao_prorrogacao: "Extinção", oposicao: "Publicado para oposição (histórico)" }} /></label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">Prazo (serviços)<Select value={prazo} onChange={setPrazo} placeholder="Todos"
+          options={{ em_andamento: "Em andamento", proximo_fim: "Próximo do fim", encerrado: "Encerrado", validacao_juridica: "Validação jurídica" }} /></label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">Prioridade<Select value={temperatura} onChange={(v) => { setTemperatura(v); setOffset(0); }} placeholder="Todas"
-          options={{ quente: "Quente", morno: "Morno", em_pesquisa: "Em pesquisa" }} /></label>
+          options={{ quente: "Quente", morno: "Morno", em_pesquisa: "Pendente", historico: "Histórico" }} /></label>
         <div className="flex flex-wrap items-end gap-2 xl:ml-auto">
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">Colorir por<Select value={metrica} onChange={setMetrica} options={Object.fromEntries(Object.entries(METRICAS).map(([k, v]) => [k, v.rotulo]))} /></label>
           <div className="flex rounded-lg border bg-muted/50 p-0.5 text-xs" role="radiogroup" aria-label="Escala">

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app import db, semana
+from app.api.servicos_routes import contagem_por_uf, por_estado
 from app.auth import User, current_user
 from app.jobs import queue
 
@@ -64,7 +65,13 @@ def _filtro_temp(p: dict) -> str:
     return " where (%(temp)s::text is null or temperatura = %(temp)s)"
 
 
-Cat = Literal["oposicao_apresentada", "oposicao", "indeferimento", "exigencia", "extincao_prorrogacao"]
+Cat = Literal["oposicao_apresentada", "oposicao", "indeferimento", "deferimento_parcial", "exigencia", "extincao_prorrogacao"]
+
+
+Temp = Literal["quente", "morno", "em_pesquisa", "historico"]
+Servico = Literal["manifestacao_oposicao", "recurso_indeferimento"]
+Prazo = Literal["em_andamento", "proximo_fim", "encerrado", "validar", "validacao_juridica"]
+SERV_ZERO = dict.fromkeys(["oposicoes_sofridas", "manifestacoes_cabiveis", "indeferimentos", "recursos_cabiveis", "servicos_quentes"], 0)
 
 
 @router.get("/mapa")
@@ -73,7 +80,9 @@ def mapa(
     desde: date | None = None,
     ate: date | None = None,
     categoria: Cat | None = None,
-    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    temperatura: Temp | None = None,
+    servico: Servico | None = None,
+    prazo: Prazo | None = None,
 ) -> dict:
     p = _params(edicao, desde, ate, categoria, temperatura)
     with db.get_pool().connection() as conn:
@@ -84,13 +93,16 @@ def mapa(
             "select count(*) n, max(numero) ultima, max(processada_em) em from rpi_editions where status = 'parsed'"
         ).fetchone()
         ordem = {r["uf"]: r["ordem"] for r in conn.execute("select uf, ordem from uf_prioridade where ativo")}
+        # V2.4: as duas categorias comerciais (oposição sofrida × indeferimento), por estado
+        serv = contagem_por_uf(conn, edicao=edicao, desde=desde, ate=ate, servico=servico, prazo=prazo)
     por = {r["uf"]: r for r in rows}
     vazio = {k: 0 for k in rows[0] if k != "uf"} if rows else None
 
     def linha(uf: str) -> dict:
         r = por.get(uf)
         base = r if r else ({"uf": uf} | (vazio or {}))
-        return dict(base) | {"uf": uf, "ordem_prioridade": ordem.get(uf), "taxa_qualificacao": (
+        sv = {k: v for k, v in (serv.get(uf) or SERV_ZERO).items() if k != "uf"}
+        return dict(base) | sv | {"uf": uf, "ordem_prioridade": ordem.get(uf), "taxa_qualificacao": (
             round(100 * base.get("quentes", 0) / base["leads"], 1) if base.get("leads") else None)}  # fmt: skip
 
     return {
@@ -101,6 +113,7 @@ def mapa(
         "estados": [linha(u) for u in UFS],
         "pendente": linha("PENDENTE"),
         "total": sum(r["leads"] for r in rows),
+        "total_servicos": {k: sum(r[k] for r in serv.values()) for k in SERV_ZERO},
     }
 
 
@@ -111,7 +124,7 @@ def mapa_uf(
     desde: date | None = None,
     ate: date | None = None,
     categoria: Cat | None = None,
-    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    temperatura: Temp | None = None,
 ) -> dict:
     uf = uf.upper()
     if uf not in UFS and uf != "PENDENTE":
@@ -164,8 +177,9 @@ def mapa_uf(
             _ESCOPO + f"select pipeline_stage as chave, count(*) n from esc where {cond} group by 1", p
         ).fetchall()
         info = conn.execute("select * from uf_prioridade where uf = %s", (uf,)).fetchone()
+        servicos = por_estado(conn, uf)
     return {"uf": uf, "info": info, "indicadores": tot, "prioritarios": prioritarios, "municipios": municipios,
-            "historico": historico, "pipeline": pipeline}  # fmt: skip
+            "historico": historico, "pipeline": pipeline, "servicos": servicos}  # fmt: skip
 
 
 # ------------------------------------------------------------------ Central RPI · operação semanal

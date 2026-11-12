@@ -78,8 +78,27 @@ def _register_new_despachos(conn: Connection, procs: list[ProcessoRPI], catalog:
     return sorted(novos)
 
 
-def _is_target(p: ProcessoRPI, catalog: dict) -> bool:
-    return any(catalog.get(d.codigo, {}).get("ativo_para_leads") for d in p.despachos)
+# Deferimento com itens excluídos ou indeferidos = deferimento parcial (pode caber recurso). Na RPI nacional não há
+# código próprio: o despacho é IPAS029 e o status de cada especificação vem em <lista-classe-nice>/<status>.
+PARCIAL_STATUS = ("Excluída", "Indeferida")
+
+
+def categoria_do_despacho(p: ProcessoRPI, d, catalog: dict) -> str | None:
+    cat = catalog.get(d.codigo, {})
+    if cat.get("ativo_para_leads"):
+        return cat["categoria_comercial"]
+    if d.codigo == "IPAS029" and any(n.get("status") in PARCIAL_STATUS for n in p.nice_detalhes):
+        return "deferimento_parcial"
+    return None
+
+
+def _load_tracked(conn: Connection) -> set[str]:
+    """Processos acompanhados: tudo o que for publicado deles é gravado (recurso, decisão, arquivamento...)."""
+    return {r["numero_processo"] for r in conn.execute("select distinct numero_processo from oportunidades_servico")}
+
+
+def _is_target(p: ProcessoRPI, catalog: dict, tracked: set[str] | None = None) -> bool:
+    return (tracked is not None and p.numero in tracked) or any(categoria_do_despacho(p, d, catalog) for d in p.despachos)
 
 
 def import_processes(
@@ -92,6 +111,7 @@ def import_processes(
 ) -> ImportStats:
     stats = ImportStats()
     catalog = _load_catalog(conn)
+    catalog["__tracked__"] = _load_tracked(conn)  # type: ignore[assignment]
     titulares_vistos: set[str] = set()
     batch: list[ProcessoRPI] = []
 
@@ -112,11 +132,23 @@ def import_processes(
 
 def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, titulares_vistos):
     stats.despachos_novos += _register_new_despachos(conn, batch, catalog, edicao)
-    procs = batch if scope == "todos" else [p for p in batch if _is_target(p, catalog)]
+    tracked = catalog.get("__tracked__")
+    procs = batch if scope == "todos" else [p for p in batch if _is_target(p, catalog, tracked)]
     if not procs:
         return
     fonte = f"rpi:{edicao}"
     numeros = [p.numero for p in procs]
+
+    # Última edição em que cada processo já apareceu: uma edição ANTIGA (importada depois, para o histórico)
+    # não pode sobrescrever a titularidade atual.
+    ultima_vista = {
+        r["numero_processo"]: r["numero"]
+        for r in conn.execute(
+            """select p.numero_processo, e.numero from processes p join rpi_editions e on e.id = p.last_seen_edition_id
+                where p.numero_processo = any(%s)""",
+            (numeros,),
+        ).fetchall()
+    }
 
     with conn.cursor() as cur:
         # 1. Titulares
@@ -207,7 +239,7 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
         stats.processos_importados += len(procs)
 
         # 3. Titularidade atual = titulares desta publicação
-        com_titulares = [p for p in procs if p.titulares]
+        com_titulares = [p for p in procs if p.titulares and ultima_vista.get(p.numero, 0) <= edicao]
         conn.execute(
             "delete from process_holders where numero_processo = any(%s)",
             ([p.numero for p in com_titulares],),
@@ -260,8 +292,8 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
         opps = []
         for p in procs:
             for d in p.despachos:
-                cat = catalog.get(d.codigo, {})
-                if not cat.get("ativo_para_leads"):
+                categoria = categoria_do_despacho(p, d, catalog)
+                if not categoria:
                     continue
                 motivo = None
                 if status_atual.get(p.numero) == "com_procurador":
@@ -275,7 +307,7 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
                         p.numero,
                         edition_id,
                         d.codigo,
-                        cat["categoria_comercial"],
+                        categoria,
                         "descartada" if motivo else "elegivel",
                         motivo,
                     )
@@ -285,7 +317,7 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
                     stats.motivos_descarte[motivo] += 1
                 else:
                     stats.oportunidades_elegiveis += 1
-                    stats.por_categoria[cat["categoria_comercial"]] += 1
+                    stats.por_categoria[categoria] += 1
         cur.executemany(
             """insert into opportunities (numero_processo, edition_id, despacho_codigo, categoria, status,
                                           motivo_descarte)

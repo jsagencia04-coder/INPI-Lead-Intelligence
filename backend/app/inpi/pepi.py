@@ -51,6 +51,7 @@ class PepiResult:
     data_concessao: date | None = None
     data_vigencia: date | None = None
     publicacoes: list[dict] = field(default_factory=list)
+    peticoes: list[dict] = field(default_factory=list)  # protocolo, data, servico, descricao, cliente
     html: bytes = b""
 
     @property
@@ -119,6 +120,44 @@ def _label(html: str, label: str) -> str | None:
     return _clean(m.group(1)) or None
 
 
+def _secao_por_titulo(html: str, titulo: str) -> str | None:
+    """Trecho HTML de uma seção "accordion" pelo título (o id numérico muda de processo para processo)."""
+    m = re.search(rf'id="accordion-([\w-]+)"\s*/>\s*<label[^>]*>\s*<font class="titulo">\s*{re.escape(titulo)}', html, re.I)
+    if not m:
+        return None
+    ini = m.end()
+    fim = html.find('id="accordion-', ini)
+    return html[ini : fim if fim > 0 else len(html)]
+
+
+def parse_peticoes(html: str) -> list[dict]:
+    """Seção "Petições": protocolo, data, código e descrição do serviço e cliente (quem peticionou).
+
+    Na página real a linha tem tabelas aninhadas (dados do pagamento e descrição do serviço); a tabela não fecha
+    o <tbody>. Por isso a leitura é por linha de primeiro nível, limitada à própria seção.
+    """
+    sec = _secao_por_titulo(html, "Petições")
+    if sec is None:
+        return []
+    p = _Rows()
+    p.feed(sec)
+    out = []
+    for row in p.rows:
+        i = next((k for k, c in enumerate(row) if re.fullmatch(r"\d{12}", c)), None)
+        if i is None or i + 1 >= len(row):
+            continue
+        data = parse_date_br(row[i + 1])
+        serv_idx = next((k for k in range(i + 2, len(row)) if re.match(r"^\d{3,5}\b", row[k])), None)
+        servico = descricao = cliente = None
+        if serv_idx is not None:
+            cel = row[serv_idx]
+            servico = re.match(r"^(\d{3,5})", cel)[1]
+            descricao = re.sub(rf"^{servico}\s*(Descrição do Serviço)?\s*{servico}?\s*", "", cel).strip() or None
+            cliente = next((c for c in row[serv_idx + 1 :] if c and c not in ("-",)), None)
+        out.append({"protocolo": row[i], "data": data, "servico": servico, "descricao": descricao, "cliente": cliente})
+    return out
+
+
 def parse_detail(html: str, numero: str, fonte_url: str) -> PepiResult:
     m = re.search(r'id="numeroProcesso"[^>]*value\s*=\s*"(\d+)"', html)
     if not m:
@@ -142,6 +181,7 @@ def parse_detail(html: str, numero: str, fonte_url: str) -> PepiResult:
         cells = (datas[0] + ["", "", ""])[:3]
         r.data_deposito, r.data_concessao, r.data_vigencia = (parse_date_br(c) for c in cells)
 
+    r.peticoes = parse_peticoes(html)
     for sec in re.findall(r'id="accordion-([\w-]+)"', html):
         for row in _section_rows(html, sec) or []:
             if len(row) >= 3 and re.fullmatch(r"\d{4}", row[0]) and parse_date_br(row[1]):

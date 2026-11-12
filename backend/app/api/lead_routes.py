@@ -30,6 +30,15 @@ LEAD_FILTER = """
    and (%(uf)s::text is null or h.uf = %(uf)s)
    and (%(guf)s::text is null or coalesce(h.geo_uf, 'PENDENTE') = %(guf)s)
    and (%(temp)s::text is null or l.temperatura = %(temp)s)
+   and (%(serv)s::text is null
+        or (%(serv)s = 'manifestacao_oposicao' and l.classificacao_oposicao is not null)
+        or (%(serv)s = 'recurso_indeferimento' and l.classificacao_recurso is not null)
+        or (%(serv)s = 'outros' and l.classificacao_oposicao is null and l.classificacao_recurso is null))
+   and (%(cls)s::text is null
+        or (%(serv)s = 'manifestacao_oposicao' and l.classificacao_oposicao = %(cls)s)
+        or (%(serv)s = 'recurso_indeferimento' and l.classificacao_recurso = %(cls)s)
+        or (%(serv)s is distinct from 'manifestacao_oposicao' and %(serv)s is distinct from 'recurso_indeferimento'
+            and %(cls)s in (l.classificacao_oposicao, l.classificacao_recurso)))
    and (%(ed)s::int is null or exists (select 1 from lead_processes lp2 join opportunities o2 on o2.numero_processo = lp2.numero_processo
                                         join rpi_editions e2 on e2.id = o2.edition_id
                                        where lp2.lead_id = l.id and e2.numero = %(ed)s and o2.status = 'elegivel'))
@@ -44,9 +53,15 @@ LEAD_FILTER = """
 """
 
 
-def _filters(status, prioridade, categoria, uf, revisao, q, whatsapp=None, geo_uf=None, temperatura=None, edicao=None) -> dict:
+def _filters(status, prioridade, categoria, uf, revisao, q, whatsapp=None, geo_uf=None, temperatura=None, edicao=None,
+             servico=None, classificacao=None) -> dict:  # fmt: skip
     return {"st": status, "pr": prioridade, "cat": categoria, "uf": uf, "rev": revisao, "q": q, "wa": whatsapp,
-            "guf": geo_uf, "temp": temperatura, "ed": edicao}  # fmt: skip
+            "guf": geo_uf, "temp": temperatura, "ed": edicao, "serv": servico, "cls": classificacao}  # fmt: skip
+
+
+ServicoF = Literal["manifestacao_oposicao", "recurso_indeferimento", "outros"]
+ClasseF = Literal["quente", "morno", "historico", "pendente"]
+TempF = Literal["quente", "morno", "em_pesquisa", "historico"]
 
 
 @router.get("/leads")
@@ -59,12 +74,15 @@ def list_leads(
     q: str | None = None,
     whatsapp: Literal["validado", "candidato", "nenhum"] | None = None,
     geo_uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"),
-    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    temperatura: TempF | None = None,
     edicao: int | None = None,
+    servico: ServicoF | None = None,
+    classificacao: ClasseF | None = None,
     limit: int = Query(50, le=200),
     offset: int = 0,
 ) -> dict:
-    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp, geo_uf, temperatura, edicao) | {"l": limit, "o": offset}
+    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp, geo_uf, temperatura, edicao, servico, classificacao) | {
+        "l": limit, "o": offset}  # fmt: skip
     with db.get_pool().connection() as conn:
         total = conn.execute(f"select count(*) n {LEAD_FILTER}", p).fetchone()["n"]
         rows = conn.execute(
@@ -141,6 +159,21 @@ def get_lead(lead_id: int) -> dict:
             (lead_id,),
         ).fetchall()
         lead["notas"] = conn.execute("select * from lead_notes where lead_id = %s order by em desc", (lead_id,)).fetchall()
+        # V2.4: oportunidades de serviço (manifestação à oposição / recurso) com prazo, medida, opositor e fontes
+        lead["servicos"] = conn.execute(
+            """select os.*, p.marca_nome from oportunidades_servico os
+                 join processes p on p.numero_processo = os.numero_processo
+                 join lead_processes lp on lp.numero_processo = os.numero_processo
+                where lp.lead_id = %s
+                order by case os.classificacao when 'quente' then 0 when 'morno' then 1 when 'pendente' then 2 else 3 end,
+                         os.prazo_fim nulls last""",
+            (lead_id,),
+        ).fetchall()
+        lead["peticoes"] = conn.execute(
+            """select pt.* from process_peticoes pt join lead_processes lp on lp.numero_processo = pt.numero_processo
+                where lp.lead_id = %s order by pt.data desc nulls last""",
+            (lead_id,),
+        ).fetchall()
         lead["revisoes"] = conn.execute(
             """select * from review_tasks where status = 'aberta' and (
                  (entidade = 'holder' and entidade_id = %s) or (entidade = 'process' and entidade_id in
@@ -436,6 +469,9 @@ EXPORT_COLS = [
     "contatos_validados",
     "fontes",
     "precisa_revisao",
+    "servico_principal",
+    "classificacao_manifestacao",
+    "classificacao_recurso",
 ]
 
 
@@ -447,6 +483,9 @@ def _export_rows(conn, p: dict) -> list[dict]:
                    case h.geo_fonte when 'receita' then 'Receita Federal (CNPJ)' when 'rpi' then 'Declarada na RPI'
                         when 'manual' then 'Informada manualmente' end as fonte_localizacao,
                    l.temperatura, (select string_agg(m, '; ') from jsonb_array_elements_text(l.temperatura_motivos) m) as motivos_temperatura,
+                   case l.servico_principal when 'manifestacao_oposicao' then 'Manifestação à oposição'
+                        when 'recurso_indeferimento' then 'Recurso contra indeferimento' end as servico_principal,
+                   l.classificacao_oposicao as classificacao_manifestacao, l.classificacao_recurso,
                    l.categoria_principal as categoria,
                    l.prazo_ate as prazo_estimado, l.procurador_confirmado as procurador_confirmado_inpi,
                    l.precisa_revisao,
@@ -477,11 +516,13 @@ def export_leads(
     uf: str | None = None,
     whatsapp: Literal["validado", "candidato", "nenhum"] | None = None,
     geo_uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"),
-    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    temperatura: TempF | None = None,
     edicao: int | None = None,
+    servico: ServicoF | None = None,
+    classificacao: ClasseF | None = None,
     user: User = Depends(current_user),
 ) -> Response:
-    p = _filters(status, prioridade, categoria, uf, None, None, whatsapp, geo_uf, temperatura, edicao)
+    p = _filters(status, prioridade, categoria, uf, None, None, whatsapp, geo_uf, temperatura, edicao, servico, classificacao)
     with db.transaction(user.actor) as conn:
         rows = _export_rows(conn, p)
         conn.execute(
