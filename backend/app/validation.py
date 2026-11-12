@@ -134,7 +134,13 @@ def check_contact(contact: dict, evidence: dict, site_host: str | None) -> tuple
             checagem["pagina_http"] = status
             checagem["pagina_sha256"] = hashlib.sha256(raw).hexdigest()
             # site fora do ar (4xx/5xx) = não deu para conferir; só invalida se a página abriu e o valor sumiu
-            na_pagina = value_in_text(tipo, norm, texto) if status < 400 else None
+            if status >= 400:
+                na_pagina = None
+            elif tipo == "site":
+                # o site é o próprio endereço: se abriu, confere (a página não precisa citar o próprio domínio)
+                na_pagina = True
+            else:
+                na_pagina = value_in_text(tipo, norm, texto)
         except httpx.HTTPError as exc:
             checagem["pagina_erro"] = type(exc).__name__
         checagem["na_pagina"] = na_pagina

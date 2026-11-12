@@ -39,8 +39,6 @@ def status() -> dict:
     pendencias = [k for k, ok in credenciais.items() if not ok]
     if s.auth_mode == "dev":
         pendencias.append("login obrigatório (AUTH_MODE=supabase)")
-    if not wa_cloud.numeros_teste(s):
-        pendencias.append("WHATSAPP_NUMEROS_TESTE (números de homologação)")
     return {
         "configurado": wa_cloud.configurado(s),
         "envio_ativo": s.whatsapp_envio_ativo,

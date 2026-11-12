@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 import httpx
 from psycopg.types.json import Jsonb
 
+from app import consent
 from app.config import Settings, get_settings
 from app.jobs import queue
 
@@ -203,11 +204,18 @@ def bloqueio(conn, msg: dict) -> str | None:
         c = conn.execute("select verificacao from contacts where id = %s", (msg["contact_id"],)).fetchone()
         if c is None or c["verificacao"] == "invalido":
             return "contato inválido"
-    if msg["numero"] not in numeros_teste(s):
-        return "número fora da lista de homologação (a regra de consentimento ainda não foi implantada)"
     t = template_status()
     if not t["ok"]:
         return f"template não aprovado: {t['motivo']}"
+    # Exceção só para homologação: seus próprios números de teste, nunca em produção.
+    if s.app_env != "producao" and msg["numero"] in numeros_teste(s):
+        return None
+    if not msg["contact_id"]:
+        return "mensagem sem contato vinculado"
+    e = consent.elegibilidade(conn, msg["contact_id"])
+    if not e["elegivel"]:
+        falhas = "; ".join(r["detalhe"] for r in e["regras"] if not r["ok"])
+        return f"regra de consentimento: {falhas}"
     return None
 
 

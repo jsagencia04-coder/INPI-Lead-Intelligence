@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Consentimento } from "@/components/consentimento";
 import { ErrorBox, PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { useApi } from "@/components/use-api";
@@ -54,6 +55,8 @@ function Celula({ t, tipo }: { t: TitularCentral; tipo: string }) {
 }
 
 function Detalhe({ t }: { t: TitularCentral }) {
+  const [autorizacao, setAutorizacao] = useState<number | null>(null);
+  const emails = t.contatos.filter((c) => c.tipo === "email" && c.verificacao !== "invalido" && !c.bloqueado);
   if (t.contatos.length === 0) return <p className="text-sm text-muted-foreground">Nenhum contato encontrado para este titular até agora.</p>;
   return (
     <table className="w-full text-xs">
@@ -62,7 +65,8 @@ function Detalhe({ t }: { t: TitularCentral }) {
       </thead>
       <tbody>
         {t.contatos.map((c) => (
-          <tr key={c.id} className={`border-t align-top ${c.verificacao === "invalido" ? "opacity-60" : ""}`}>
+          <Fragment key={c.id}>
+          <tr className={`border-t align-top ${c.verificacao === "invalido" ? "opacity-60" : ""}`}>
             <td className="py-1.5 pr-3 font-medium">{c.tipo}</td>
             <td className="pr-3">{c.valor}</td>
             <td className="pr-3">
@@ -71,12 +75,19 @@ function Detalhe({ t }: { t: TitularCentral }) {
               {c.tipo === "telefone" && c.eh_celular !== null && <div className="text-muted-foreground">{c.eh_celular ? "celular" : "fixo"}</div>}
               <div className={c.com_permissao ? "text-emerald-700" : "text-muted-foreground"}>{c.com_permissao ? "com autorização registrada" : "sem autorização"}</div>
               {c.bloqueado && <div className="text-destructive">bloqueado (opt-out)</div>}
+              {c.tipo === "whatsapp" && c.verificacao !== "invalido" && (
+                <button className="mt-1 underline underline-offset-2" onClick={() => setAutorizacao(autorizacao === c.id ? null : c.id)}>
+                  {autorizacao === c.id ? "Fechar" : "Autorização e elegibilidade"}
+                </button>
+              )}
             </td>
             <td className="pr-3 tabular-nums">{c.confianca !== null ? `${Math.round(c.confianca * 100)}%` : "—"}</td>
             <td className="max-w-56 truncate pr-3"><Fonte c={c} /></td>
             <td className="pr-3 whitespace-nowrap">{fmtDay(c.fonte_obtida_em ?? c.created_at)}</td>
             <td className="max-w-80 text-muted-foreground">{c.fonte_trecho ? `“${c.fonte_trecho.slice(0, 160)}”` : c.observacao ?? "—"}</td>
           </tr>
+          {autorizacao === c.id && <tr><td colSpan={7}><Consentimento contato={c} emails={emails} /></td></tr>}
+          </Fragment>
         ))}
       </tbody>
     </table>

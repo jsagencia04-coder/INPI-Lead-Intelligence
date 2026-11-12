@@ -187,3 +187,13 @@ def test_lote_inclui_nao_confirmados_e_refaz_metodo_antigo(conn, mundo):  # noqa
     run_one("w-test")
     n = conn.execute("select count(*) n from jobs where tipo = 'research.free'").fetchone()["n"]
     assert n == total and total > 1  # todos entram, inclusive o já pesquisado com o método antigo
+
+
+def test_site_que_abre_nao_e_marcado_como_invalido(conn, sites):
+    """Regressão: o site do titular era invalidado porque a página inicial não citava o próprio domínio."""
+    importar_rpi()
+    for t in ("inpi.verify_pending", "cnpj.sync", "leads.build", "research.free_batch"):
+        enqueue(t)
+        drain()
+    site = conn.execute("select * from contacts where tipo = 'site' and valor_normalizado = 'gamaalimentos.com.br'").fetchone()
+    assert site["verificacao"] == "dominio_ok"

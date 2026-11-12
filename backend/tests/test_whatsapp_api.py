@@ -162,8 +162,8 @@ def test_envio_real_e_status_apenas_pelo_webhook(conn, sites, meta, monkeypatch)
     ("env", "motivo"),
     [
         ({"AUTH_MODE": "dev"}, "login obrigatório"),
-        ({"WHATSAPP_NUMEROS_TESTE": "+5511900000000"}, "lista de homologação"),
-        ({"WHATSAPP_NUMEROS_TESTE": ""}, "lista de homologação"),
+        ({"WHATSAPP_NUMEROS_TESTE": "+5511900000000"}, "Sem autorização registrada"),
+        ({"WHATSAPP_NUMEROS_TESTE": ""}, "Sem autorização registrada"),
     ],
 )
 def test_bloqueios_impedem_o_envio(conn, sites, meta, monkeypatch, env, motivo):  # noqa: F811
