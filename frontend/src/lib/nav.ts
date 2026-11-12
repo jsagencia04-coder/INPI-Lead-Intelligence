@@ -1,7 +1,7 @@
 /** Mapa de navegação da plataforma: grupos, páginas, ícones e cores de identidade de cada módulo. */
 import {
   Activity, BarChart3, BookOpen, Building2, ClipboardCheck, Contact, FileText, Filter, LayoutDashboard, ListChecks,
-  MessageCircle, Settings2, ShieldCheck, Users, type LucideIcon,
+  Map as MapIcon, MessageCircle, Radar, Settings2, ShieldCheck, Users, type LucideIcon,
 } from "lucide-react";
 
 export type Tom = "violet" | "indigo" | "blue" | "cyan" | "emerald" | "amber" | "orange" | "rose" | "slate";
@@ -29,6 +29,7 @@ export const NAV: NavGrupo[] = [
   {
     titulo: "Comercial",
     itens: [
+      { href: "/mapa", label: "Mapa de oportunidades", icon: MapIcon, tom: "blue", descricao: "Leads por estado, oposições e contatos validados", alerta: ["sc_quentes", "geo_pendente"] },
       { href: "/pipeline", label: "Pipeline comercial", icon: Filter, tom: "rose", descricao: "Funil de 17 etapas e a jornada de cada lead", alerta: ["respostas", "elegiveis"] },
       { href: "/leads", label: "Leads", icon: Users, tom: "orange", descricao: "Titulares qualificados, prioridade e aprovação", alerta: ["aprovar"] },
       { href: "/contatos", label: "Central de contatos", icon: Contact, tom: "emerald", descricao: "WhatsApp, telefones, e-mails, origem e autorização" },
@@ -38,6 +39,7 @@ export const NAV: NavGrupo[] = [
   {
     titulo: "Inteligência INPI",
     itens: [
+      { href: "/rpi-semanal", label: "Central RPI semanal", icon: Radar, tom: "indigo", descricao: "Operação de terça-feira: detecção, extração e SC → RS → PR", alerta: ["rpi_falha", "rpi_atrasada"] },
       { href: "/rpi", label: "Edições da RPI", icon: BookOpen, tom: "blue", descricao: "Revistas semanais importadas e arquivos originais" },
       { href: "/processos", label: "Processos", icon: FileText, tom: "blue", descricao: "Processos, despachos e situação do procurador" },
       { href: "/despachos", label: "Despachos", icon: ListChecks, tom: "cyan", descricao: "Classificação comercial dos despachos" },

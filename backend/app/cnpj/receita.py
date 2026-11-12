@@ -73,6 +73,11 @@ def _rows(zip_path: Path) -> Iterator[list[str]]:
                 yield from csv.reader(io.TextIOWrapper(raw, encoding="latin-1", newline=""), delimiter=";")
 
 
+def scan_municipios(zip_path: Path) -> list[tuple[str, str]]:
+    """Tabela de municípios da Receita (código;nome). Pequena; usada para mostrar a cidade do titular."""
+    return [(r[0].strip(), r[1].strip().title()) for r in _rows(zip_path) if len(r) >= 2 and r[0].strip()]
+
+
 def scan_empresas(files: list[Path], chaves: set[str]) -> list[dict]:
     """Empresas cujo nome normalizado está em `chaves`."""
     primeiros = {c.split(" ", 1)[0] for c in chaves if c}
@@ -178,8 +183,8 @@ def ensure_files(mes: str | None = None) -> tuple[str, list[Path], list[Path]]:
         pasta = cache / mes
         pasta.mkdir(parents=True, exist_ok=True)
         base = f"{s.cnpj_webdav_url.rstrip('/')}/{mes}/"
-        remotos = {n: sz for n, sz in _propfind(c, base) if re.fullmatch(r"(Empresas|Estabelecimentos)\d\.zip", n)}
-        if not remotos:
+        remotos = {n: sz for n, sz in _propfind(c, base) if re.fullmatch(r"(Empresas|Estabelecimentos)\d\.zip|Municipios\.zip", n)}
+        if not any(n.startswith(("Empresas", "Estabelecimentos")) for n in remotos):
             raise RuntimeError(f"Mês {mes} sem arquivos Empresas/Estabelecimentos")
         for nome, tamanho in sorted(remotos.items()):
             destino = pasta / nome

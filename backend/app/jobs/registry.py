@@ -66,4 +66,4 @@ def registered_types() -> list[str]:
 
 def load_agents() -> None:
     """Importa os módulos de agentes para que registrem seus handlers."""
-    from app.agents import cnpj, inpi, leads, research, rpi, site_crawler, system, whatsapp_send  # noqa: F401
+    from app.agents import cnpj, inpi, leads, research, rpi, semana, site_crawler, system, whatsapp_send  # noqa: F401

@@ -13,9 +13,11 @@ Critério de vínculo (regra 5, não confundir homônimos):
 Telefone e e-mail cadastrais viram contatos com fonte 'receita', ainda não verificados.
 """
 
+from pathlib import Path
+
 from psycopg.types.json import Jsonb
 
-from app.cnpj.receita import ensure_files, nome_chave, scan_empresas, scan_estabelecimentos
+from app.cnpj.receita import ensure_files, nome_chave, scan_empresas, scan_estabelecimentos, scan_municipios
 from app.config import get_settings
 from app.jobs import queue
 from app.jobs.registry import JobContext, handler
@@ -166,14 +168,19 @@ def sync(conn, ctx: JobContext) -> dict:
     empresas = scan_empresas(empresas_zip, chaves)
     estabs = scan_estabelecimentos(estab_zip, {e["cnpj_basico"] for e in empresas})
     _upsert(conn, empresas, estabs, mes)
-
-    from app.config import get_settings
+    mun = Path(get_settings().cnpj_cache_dir) / mes / "Municipios.zip"
+    if mun.exists():
+        conn.cursor().executemany(
+            "insert into cnpj_municipios (codigo, nome) values (%s, %s) on conflict (codigo) do update set nome = excluded.nome",
+            scan_municipios(mun),
+        )
 
     fonte = f"{get_settings().cnpj_webdav_url.rstrip('/')}/{mes}/"
     contagem: dict[str, int] = {}
     for h in holders:
         st = match_holder(conn, h, mes, fonte)
         contagem[st] = contagem.get(st, 0) + 1
+    conn.execute("select geo_atualizar()")  # CNPJ confirmado => localização confirmada pela Receita
     queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
     return {
         "mes": mes,

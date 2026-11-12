@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     # Primeira edição a importar. Vazio = só a edição mais recente quando o banco está vazio.
     rpi_start_edition: int | None = None
     rpi_max_editions_per_run: int = 10
+    # Ao terminar a leitura da RPI, a SILVANE já monta os leads e distribui o trabalho por estado (SC primeiro).
+    rpi_operacao_semanal_auto: bool = True
     # PDFs de marcas somam ~150 MB por semana; o XML oficial (~10 MB) é a fonte estruturada.
     rpi_download_pdf: bool = False
     # alvo  = grava apenas processos com despachos ativos para leads (economia de banco)

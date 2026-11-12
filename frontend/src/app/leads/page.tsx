@@ -16,6 +16,7 @@ import { useApi } from "@/components/use-api";
 import { apiDownload } from "@/lib/api";
 import { categoriaLabel, diasAte, fmtDay, leadStatusLabel, prioridadeVariant } from "@/lib/format";
 import type { LeadListItem, Paged } from "@/lib/types";
+import { TEMPERATURA } from "@/lib/territorio";
 
 const PAGE = 50;
 
@@ -33,7 +34,7 @@ function LeadsInner() {
     router.replace(`${pathname}?${p}`);
   };
   const filtros = new URLSearchParams();
-  for (const k of ["status", "prioridade", "categoria", "revisao", "whatsapp"]) if (sp.get(k)) filtros.set(k, sp.get(k)!);
+  for (const k of ["status", "prioridade", "categoria", "revisao", "whatsapp", "temperatura", "geo_uf"]) if (sp.get(k)) filtros.set(k, sp.get(k)!);
   const params = new URLSearchParams(filtros);
   if (q.trim()) params.set("q", q.trim());
   params.set("limit", String(PAGE));
@@ -64,6 +65,8 @@ function LeadsInner() {
           options={Object.fromEntries(Object.entries(categoriaLabel).filter(([k]) => !["outro", "arquivamento"].includes(k)))} />
         <Select value={sp.get("whatsapp") ?? ""} onChange={(v) => setParam("whatsapp", v)} placeholder="WhatsApp: todos"
           options={{ validado: "WhatsApp validado", candidato: "WhatsApp candidato", nenhum: "Sem WhatsApp" }} />
+        <Select value={sp.get("temperatura") ?? ""} onChange={(v) => setParam("temperatura", v)} placeholder="Temperatura: todas"
+          options={{ quente: "Quente", morno: "Morno", em_pesquisa: "Em pesquisa" }} />
         <Select value={sp.get("revisao") ?? ""} onChange={(v) => setParam("revisao", v)} placeholder="Revisão: todos"
           options={{ true: "Precisa revisão", false: "Revisados" }} />
       </div>
@@ -73,14 +76,14 @@ function LeadsInner() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Prioridade</TableHead><TableHead>Titular</TableHead><TableHead>WhatsApp</TableHead><TableHead>Categoria</TableHead>
+                <TableHead>Prioridade</TableHead><TableHead>Temperatura</TableHead><TableHead>Titular</TableHead><TableHead>WhatsApp</TableHead><TableHead>Categoria</TableHead>
                 <TableHead>Prazo estimado</TableHead><TableHead className="text-right">Proc.</TableHead>
                 <TableHead>Contatos</TableHead><TableHead>Procurador</TableHead><TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data?.items.length === 0 && (
-                <TableRow><TableCell colSpan={9} className="text-muted-foreground">
+                <TableRow><TableCell colSpan={10} className="text-muted-foreground">
                   Nenhum lead. Os leads são montados após a importação da RPI (agente leads.build, a cada hora).
                 </TableCell></TableRow>
               )}
@@ -92,10 +95,18 @@ function LeadsInner() {
                       {l.prioridade && <Badge variant={prioridadeVariant[l.prioridade]}>{l.prioridade}</Badge>}
                       <span className="ml-2 text-xs tabular-nums text-muted-foreground">{l.score ?? ""}</span>
                     </TableCell>
+                    <TableCell>
+                      {l.temperatura && (
+                        <span title={l.temperatura_motivos?.length ? `Motivos:\n• ${l.temperatura_motivos.join("\n• ")}` : undefined}
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${TEMPERATURA[l.temperatura]?.classe ?? ""}`}>
+                          <span className={`size-1.5 rounded-full ${TEMPERATURA[l.temperatura]?.ponto ?? ""}`} />{TEMPERATURA[l.temperatura]?.rotulo}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="max-w-64">
                       <Link href={`/leads/${l.id}`} className="block truncate font-medium underline-offset-4 hover:underline" title={l.titular}>{l.titular}</Link>
                       <div className="text-xs text-muted-foreground">
-                        {l.tipo_provavel} · {l.uf ?? "UF ?"}{l.cnpj ? ` · CNPJ ${l.cnpj}` : l.cnpj_status === "ambiguo" ? " · CNPJ ambíguo" : ""}
+                        {l.tipo_provavel} · {l.geo_uf ? `${l.geo_municipio ? l.geo_municipio + "/" : ""}${l.geo_uf} (${l.geo_status})` : "UF pendente"}{l.cnpj ? ` · CNPJ ${l.cnpj}` : l.cnpj_status === "ambiguo" ? " · CNPJ ambíguo" : ""}
                         {l.segmento ? ` · ${l.segmento}` : ""}
                       </div>
                     </TableCell>

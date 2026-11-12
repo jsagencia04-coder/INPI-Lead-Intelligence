@@ -24,7 +24,7 @@ export type OfficeEvent = {
 const PESO: Record<AgentState, number> = { error: 6, working: 5, thinking: 5, waiting: 3, completed: 2, idle: 1 };
 
 export function agentStatusFromReal(agent: Agent, st: OfficeState): AgentStatus {
-  const tipos = (agent.id === "coordenador" ? ["scheduler"] : agent.jobTypes).map((t) => st.tipos[t]).filter(Boolean);
+  const tipos = (agent.id === "coordenador" ? agent.jobTypes.filter((t) => t !== "system.ping") : agent.jobTypes).map((t) => st.tipos[t]).filter(Boolean);
   if (!tipos.length) return { state: "idle", tarefa: null, desde: Date.parse(st.gerado_em), fonte: "real" };
   const top = tipos.reduce((a, b) => (PESO[b.state] > PESO[a.state] ? b : a));
   return { state: top.state, tarefa: top.tarefa, desde: top.desde ? Date.parse(top.desde) : Date.parse(st.gerado_em), fonte: "real" };

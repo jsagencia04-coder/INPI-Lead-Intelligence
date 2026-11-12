@@ -28,6 +28,11 @@ LEAD_FILTER = """
    and (%(pr)s::text is null or l.prioridade = %(pr)s)
    and (%(cat)s::text is null or l.categoria_principal = %(cat)s)
    and (%(uf)s::text is null or h.uf = %(uf)s)
+   and (%(guf)s::text is null or coalesce(h.geo_uf, 'PENDENTE') = %(guf)s)
+   and (%(temp)s::text is null or l.temperatura = %(temp)s)
+   and (%(ed)s::int is null or exists (select 1 from lead_processes lp2 join opportunities o2 on o2.numero_processo = lp2.numero_processo
+                                        join rpi_editions e2 on e2.id = o2.edition_id
+                                       where lp2.lead_id = l.id and e2.numero = %(ed)s and o2.status = 'elegivel'))
    and (%(rev)s::boolean is null or l.precisa_revisao = %(rev)s)
    and (%(wa)s::text is null
         or (%(wa)s = 'validado' and l.whatsapp_status in ('confirmado', 'validado'))
@@ -39,8 +44,9 @@ LEAD_FILTER = """
 """
 
 
-def _filters(status, prioridade, categoria, uf, revisao, q, whatsapp=None) -> dict:
-    return {"st": status, "pr": prioridade, "cat": categoria, "uf": uf, "rev": revisao, "q": q, "wa": whatsapp}
+def _filters(status, prioridade, categoria, uf, revisao, q, whatsapp=None, geo_uf=None, temperatura=None, edicao=None) -> dict:
+    return {"st": status, "pr": prioridade, "cat": categoria, "uf": uf, "rev": revisao, "q": q, "wa": whatsapp,
+            "guf": geo_uf, "temp": temperatura, "ed": edicao}  # fmt: skip
 
 
 @router.get("/leads")
@@ -52,14 +58,23 @@ def list_leads(
     revisao: bool | None = None,
     q: str | None = None,
     whatsapp: Literal["validado", "candidato", "nenhum"] | None = None,
+    geo_uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"),
+    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    edicao: int | None = None,
     limit: int = Query(50, le=200),
     offset: int = 0,
 ) -> dict:
-    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp) | {"l": limit, "o": offset}
+    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp, geo_uf, temperatura, edicao) | {"l": limit, "o": offset}
     with db.get_pool().connection() as conn:
         total = conn.execute(f"select count(*) n {LEAD_FILTER}", p).fetchone()["n"]
         rows = conn.execute(
             f"""select l.*, h.nome_original as titular, h.uf, h.tipo_provavel, h.cnpj, h.cnpj_status,
+                       h.geo_uf, h.geo_municipio, h.geo_status, h.geo_fonte,
+                       (select max(e.data_publicacao) from lead_processes lp join opportunities o on o.numero_processo = lp.numero_processo
+                          join rpi_editions e on e.id = o.edition_id where lp.lead_id = l.id) as ultima_publicacao,
+                       (select string_agg(distinct p.marca_nome, ', ') from lead_processes lp join processes p on p.numero_processo = lp.numero_processo
+                         where lp.lead_id = l.id) as marcas,
+                       (select string_agg(lp.numero_processo, ', ') from lead_processes lp where lp.lead_id = l.id) as processos,
                        (select count(*) from lead_processes lp where lp.lead_id = l.id) as n_processos,
                        (select count(*) from contacts c where c.holder_id = l.holder_id and c.verificacao <> 'invalido')
                          as n_contatos,
@@ -401,10 +416,16 @@ EXPORT_COLS = [
     "score",
     "whatsapp",
     "whatsapp_status",
+    "temperatura",
+    "motivos_temperatura",
     "status",
     "titular",
     "tipo",
     "uf",
+    "uf_localizacao",
+    "municipio",
+    "localizacao",
+    "fonte_localizacao",
     "cnpj",
     "segmento",
     "categoria",
@@ -422,6 +443,10 @@ def _export_rows(conn, p: dict) -> list[dict]:
     rows = conn.execute(
         f"""select l.id as lead_id, l.prioridade, l.score, l.status, h.nome_original as titular,
                    h.tipo_provavel as tipo, h.uf, h.cnpj, l.segmento, l.whatsapp, l.whatsapp_status,
+                   h.geo_uf as uf_localizacao, h.geo_municipio as municipio, h.geo_status as localizacao,
+                   case h.geo_fonte when 'receita' then 'Receita Federal (CNPJ)' when 'rpi' then 'Declarada na RPI'
+                        when 'manual' then 'Informada manualmente' end as fonte_localizacao,
+                   l.temperatura, (select string_agg(m, '; ') from jsonb_array_elements_text(l.temperatura_motivos) m) as motivos_temperatura,
                    l.categoria_principal as categoria,
                    l.prazo_ate as prazo_estimado, l.procurador_confirmado as procurador_confirmado_inpi,
                    l.precisa_revisao,
@@ -451,9 +476,12 @@ def export_leads(
     categoria: str | None = None,
     uf: str | None = None,
     whatsapp: Literal["validado", "candidato", "nenhum"] | None = None,
+    geo_uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"),
+    temperatura: Literal["quente", "morno", "em_pesquisa"] | None = None,
+    edicao: int | None = None,
     user: User = Depends(current_user),
 ) -> Response:
-    p = _filters(status, prioridade, categoria, uf, None, None, whatsapp)
+    p = _filters(status, prioridade, categoria, uf, None, None, whatsapp, geo_uf, temperatura, edicao)
     with db.transaction(user.actor) as conn:
         rows = _export_rows(conn, p)
         conn.execute(

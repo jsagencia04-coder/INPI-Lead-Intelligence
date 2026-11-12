@@ -141,6 +141,7 @@ class FakeReceita:
         self.files = {
             "Empresas0.zip": _zip("K3241.EMPRECSV", empresas),
             "Estabelecimentos0.zip": _zip("K3241.ESTABELE", estab),
+            "Municipios.zip": _zip("F.K03200$Z.D41011.MUNICCSV", _csv([["7107", "SAO PAULO"], ["8105", "FLORIANOPOLIS"]])),
         }
         self.gets = 0
 
@@ -278,12 +279,23 @@ def mundo(monkeypatch):
     get_settings.cache_clear()
 
 
-def importar_rpi():
-    with TestClient(app) as c:
-        assert (
-            c.post("/api/rpi/upload", files={"file": ("RM2914.zip", make_zip(xml_text()), "application/zip")}).status_code == 201
-        )
-    drain()
+def importar_rpi(semana: bool = False):
+    """Importa a RPI de teste. Por padrão sem a operação semanal automática, para testar cada agente isolado;
+    os testes da V2.3 usam semana=True (fluxo real de terça-feira)."""
+    import os
+
+    from app.config import get_settings
+
+    os.environ["RPI_OPERACAO_SEMANAL_AUTO"] = "true" if semana else "false"
+    get_settings.cache_clear()
+    try:
+        with TestClient(app) as c:
+            r = c.post("/api/rpi/upload", files={"file": ("RM2914.zip", make_zip(xml_text()), "application/zip")})
+            assert r.status_code == 201
+        drain()
+    finally:
+        os.environ.pop("RPI_OPERACAO_SEMANAL_AUTO", None)
+        get_settings.cache_clear()
 
 
 def lead_de(conn, nome_like):
@@ -415,6 +427,8 @@ def test_pipeline_completo(conn, mundo):
     assert lg["status"] == "qualificado" and lg["score_detalhes"]["contatos"] == 20
 
     # Fase 6: resumo (Agente 06), relatório e exportação
+    # um lead de prioridade baixa recebe o texto padrão (sem gastar IA)
+    conn.execute("update leads set prioridade = 'baixa' where id = (select min(id) from leads where id <> %s)", (lg["id"],))
     enqueue("sales.summarize_batch")
     enqueue("reports.weekly")
     drain()

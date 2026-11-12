@@ -49,17 +49,20 @@ def verify_pending(conn, ctx: JobContext) -> dict:
     s = get_settings()
     rows = conn.execute(
         """
-        select p.numero_processo, min(case o.categoria when 'indeferimento' then 1 when 'exigencia' then 2
-                                       when 'oposicao' then 3 else 4 end) as urg, max(e.numero) as rpi
+        select p.numero_processo, min(case o.categoria when 'oposicao_apresentada' then 0 when 'indeferimento' then 1
+                                       when 'exigencia' then 2 when 'oposicao' then 3 else 4 end) as urg, max(e.numero) as rpi,
+               min(prioridade_fila_uf(h.geo_uf)) as pfila
           from processes p
           join opportunities o on o.numero_processo = p.numero_processo and o.status = 'elegivel'
           join rpi_editions e on e.id = o.edition_id
+          left join process_holders ph on ph.numero_processo = p.numero_processo
+          left join holders h on h.id = ph.holder_id
          where p.procurador_status <> 'com_procurador'
            and (p.verificado_inpi_em is null or p.verificado_inpi_em < now() - make_interval(days => %s))
            and not exists (select 1 from jobs j where j.tipo = 'inpi.verify' and j.status in ('queued','running')
                              and j.payload->>'numero' = p.numero_processo)
          group by p.numero_processo
-         order by urg, rpi desc, p.numero_processo
+         order by min(prioridade_fila_uf(h.geo_uf)), rpi desc, urg, p.numero_processo
          limit %s
         """,
         (s.pepi_reverificar_dias, ctx.payload.get("limite", s.pepi_lote_por_execucao)),
@@ -70,7 +73,7 @@ def verify_pending(conn, ctx: JobContext) -> dict:
             "inpi.verify",
             {"numero": r["numero_processo"]},
             dedupe_key=f"inpi.verify:{r['numero_processo']}",
-            prioridade=60 + r["urg"],
+            prioridade=r["pfila"] + 50 + r["urg"],
         )
     return {"enfileirados": len(rows)}
 

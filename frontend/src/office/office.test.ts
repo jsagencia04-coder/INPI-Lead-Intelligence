@@ -123,13 +123,14 @@ describe("identidade da Diretoria", () => {
     const s = AGENTES.find((a) => a.departamento === "diretoria")!;
     expect(s.nome).toBe("SILVANE");
     expect(s.id).toBe("coordenador");
-    expect(s.jobTypes).toEqual(["scheduler", "system.ping"]);
+    expect(s.jobTypes.slice(0, 2)).toEqual(["scheduler", "system.ping"]);
+    expect(s.jobTypes).toContain("rpi.semana");
     expect(s.lider).toBe(true);
     expect(AGENTES.filter((a) => a.lider)).toHaveLength(1);
   });
   it("todo agente tem especialidade e os novos tipos de job têm responsável", () => {
     for (const a of AGENTES) expect(a.especialidade?.length).toBeGreaterThan(20);
     const todos = AGENTES.flatMap((a) => a.jobTypes);
-    for (const t of ["whatsapp.send", "cnpj.recontatos"]) expect(todos).toContain(t);
+    for (const t of ["whatsapp.send", "cnpj.recontatos", "rpi.semana", "rpi.semana_check"]) expect(todos).toContain(t);
   });
 });

@@ -55,6 +55,14 @@ def describe_job(tipo: str, payload: dict | None) -> str:
         return "Escrevendo resumos e abordagens"
     if tipo == "reports.weekly":
         return "Consolidando o relatório semanal"
+    if tipo == "rpi.semana" and "numero" in p:
+        return f"Distribuindo a RPI {p['numero']} por estado (SC primeiro)"
+    if tipo == "rpi.semana_check":
+        return "Acompanhando a operação semanal da RPI"
+    if tipo == "cnpj.recontatos":
+        return "Recuperando contatos da base da Receita"
+    if tipo == "whatsapp.send" and "message_id" in p:
+        return f"Enviando a mensagem #{p['message_id']} pela API oficial"
     return tipo
 
 

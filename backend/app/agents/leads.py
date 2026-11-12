@@ -21,9 +21,13 @@ from app.jobs.registry import JobContext, handler
 from app.validation import check_contact, host_of
 from app.whatsapp import CANDIDATO_OBS, best_whatsapp, derive_candidates, evidencia_indica_whatsapp
 
-CAT_PESO = {"indeferimento": 40, "exigencia": 35, "extincao_prorrogacao": 30, "oposicao": 20}
-CAT_ORDEM = ["indeferimento", "exigencia", "extincao_prorrogacao", "oposicao"]
-PRAZO_DIAS = {"indeferimento": 60, "exigencia": 60, "oposicao": 60}  # LPI: prazos de 60 dias (estimativa)
+# Oposição apresentada (categoria A) é a oportunidade principal; pedido publicado para oposição é a categoria B.
+CAT_PESO = {"oposicao_apresentada": 45, "indeferimento": 40, "exigencia": 35, "extincao_prorrogacao": 30, "oposicao": 20}
+CAT_ORDEM = ["oposicao_apresentada", "indeferimento", "exigencia", "extincao_prorrogacao", "oposicao"]
+# LPI: prazos de 60 dias (estimativa; confirmar no INPI)
+PRAZO_DIAS = {"oposicao_apresentada": 60, "indeferimento": 60, "exigencia": 60, "oposicao": 60}
+# Peso comercial por UF, pela ordem configurada em uf_prioridade (SC, RS, PR...)
+UF_PESO = {1: 15, 2: 10, 3: 8}
 STATUS_HUMANOS = ("aprovado", "contatado", "convertido")
 
 # Setores por classe de Nice (agrupamento comercial simplificado)
@@ -107,6 +111,10 @@ def compute_score(
     procurador_confirmado: bool,
     cnpj_status: str,
     whatsapp_status: str | None = None,
+    uf_ordem: int | None = None,
+    dias_publicacao: int | None = None,
+    abordado: bool = False,
+    geo_status: str | None = None,
 ) -> tuple[float, dict]:
     det = {"categoria": CAT_PESO.get(categoria or "", 0)}
     if dias_restantes is not None:
@@ -120,7 +128,57 @@ def compute_score(
     det["pessoa_juridica"] = 5 if tipo == "PJ" else 0
     det["procurador_confirmado"] = 10 if procurador_confirmado else -10
     det["cnpj_ambiguo"] = -10 if cnpj_status == "ambiguo" else 0
+    # V2.3: território, recência, abordagem anterior e confiabilidade da localização
+    det["estado"] = UF_PESO.get(uf_ordem or 0, 0)
+    if dias_publicacao is not None:
+        det["recencia"] = 10 if dias_publicacao <= 7 else 5 if dias_publicacao <= 30 else 0
+    det["sem_abordagem"] = 0 if abordado else 5
+    det["localizacao"] = 5 if geo_status == "confirmada" else 0 if geo_status == "estimada" else -5
     return float(sum(det.values())), det
+
+
+ROTULO_CAT = {
+    "oposicao_apresentada": "oposição apresentada por terceiro",
+    "oposicao": "pedido publicado para oposição",
+    "indeferimento": "indeferimento",
+    "exigencia": "exigência",
+    "extincao_prorrogacao": "extinção por falta de prorrogação",
+}
+
+
+def temperatura(
+    *, categoria: str | None, dias_publicacao: int | None, contato_validado: bool, contatos_total: int,
+    whatsapp_status: str | None, geo_status: str, cnpj_status: str, abordado: bool, procurador_confirmado: bool,
+    uf: str | None,
+) -> tuple[str, list[str]]:
+    """Quente / morno / em pesquisa, com os motivos. Oposição sozinha NÃO torna o lead validado."""
+    motivos: list[str] = []
+    relevante = categoria == "oposicao_apresentada" or (dias_publicacao is not None and dias_publicacao <= 30)
+    motivos.append(f"Despacho: {ROTULO_CAT.get(categoria or '', categoria or '—')}")
+    if dias_publicacao is not None:
+        motivos.append(f"Publicado há {dias_publicacao} dia(s)")
+    motivos.append(
+        f"Localização {geo_status}" + (f" ({uf})" if uf else "") if geo_status != "pendente" else "Localização pendente"
+    )
+    if contato_validado:
+        motivos.append("Contato comercial validado")
+    elif whatsapp_status == "candidato":
+        motivos.append("WhatsApp ainda candidato (sem prova)")
+    elif contatos_total:
+        motivos.append("Contatos encontrados, ainda sem validação")
+    else:
+        motivos.append("Nenhum contato encontrado")
+    if cnpj_status == "ambiguo":
+        motivos.append("CNPJ ambíguo (homônimos)")
+    motivos.append("Ausência de procurador confirmada no INPI" if procurador_confirmado else "Procurador ausente só na RPI")
+    if abordado:
+        motivos.append("Já houve abordagem")
+
+    if contatos_total == 0 or geo_status == "pendente" or (cnpj_status == "ambiguo" and not contato_validado):
+        return "em_pesquisa", motivos
+    if relevante and contato_validado and not abordado:
+        return "quente", motivos
+    return "morno", motivos
 
 
 def prioridade(score: float) -> str:
@@ -130,6 +188,8 @@ def prioridade(score: float) -> str:
 @handler("leads.build")
 def build(conn, ctx: JobContext) -> dict:
     hoje = date.today()
+    conn.execute("select geo_atualizar()")  # localização: Receita (confirmada) > RPI (estimada) > pendente
+    ordem_uf = {r["uf"]: r["ordem"] for r in conn.execute("select uf, ordem from uf_prioridade where ativo")}
     supr = {r["valor_hash"] for r in conn.execute("select valor_hash from suppression_list where tipo = 'titular'")}
 
     # Titulares com oportunidade elegível
@@ -150,6 +210,8 @@ def build(conn, ctx: JobContext) -> dict:
         if r["categoria"] in PRAZO_DIAS and r["data_publicacao"]:
             g["pubs"].append(r["data_publicacao"] + timedelta(days=PRAZO_DIAS[r["categoria"]]))
         g["conf"].append(r["procurador_status"] == "sem_confirmado")
+        if r["data_publicacao"]:
+            g.setdefault("datas", []).append(r["data_publicacao"])
         g["classes"] += r["classes_nice"] or []
 
     # Deduplicação: titulares diferentes com o mesmo CNPJ viram um lead só (o de menor id)
@@ -198,10 +260,20 @@ def build(conn, ctx: JobContext) -> dict:
                  from contacts where holder_id = %s""",
             (hid,),
         ).fetchone()
-        categoria = min(g["cats"], key=CAT_ORDEM.index)
+        categoria = min(g["cats"], key=lambda c: CAT_ORDEM.index(c) if c in CAT_ORDEM else 99)
         prazo = min((p for p in g["pubs"] if p >= hoje), default=max(g["pubs"], default=None))
         dias = (prazo - hoje).days if prazo else None
         confirmado = any(g["conf"])
+        recente = max(g.get("datas", []), default=None)
+        dias_pub = (hoje - recente).days if recente else None
+        hg = conn.execute("select geo_uf, geo_status from holders where id = %s", (hid,)).fetchone()
+        abordado = (
+            conn.execute("select 1 from outreach_log where lead_id = %s limit 1", (lead["id"],)).fetchone() is not None
+            or conn.execute(
+                "select 1 from wa_messages where lead_id = %s and direcao = 'saida' and modo = 'real' limit 1", (lead["id"],)
+            ).fetchone()
+            is not None
+        )
         score, det = compute_score(
             categoria=categoria,
             dias_restantes=dias,
@@ -212,6 +284,22 @@ def build(conn, ctx: JobContext) -> dict:
             procurador_confirmado=confirmado,
             cnpj_status=h["cnpj_status"],
             whatsapp_status=wa_status,
+            uf_ordem=ordem_uf.get(hg["geo_uf"]),
+            dias_publicacao=dias_pub,
+            abordado=abordado,
+            geo_status=hg["geo_status"],
+        )
+        temp, motivos_temp = temperatura(
+            categoria=categoria,
+            dias_publicacao=dias_pub,
+            contato_validado=bool(cont["val"]) or wa_status in ("confirmado", "validado"),
+            contatos_total=cont["tot"],
+            whatsapp_status=wa_status,
+            geo_status=hg["geo_status"],
+            cnpj_status=h["cnpj_status"],
+            abordado=abordado,
+            procurador_confirmado=confirmado,
+            uf=hg["geo_uf"],
         )
         cnae = None
         if cnpj:
@@ -240,7 +328,8 @@ def build(conn, ctx: JobContext) -> dict:
         conn.execute(
             """update leads set status = %s, motivo_descarte = %s, score = %s, score_detalhes = %s, prioridade = %s,
                       segmento = %s, categoria_principal = %s, prazo_ate = %s, procurador_confirmado = %s,
-                      precisa_revisao = (revisado_por is null or %s > 0), whatsapp = %s, whatsapp_status = %s
+                      precisa_revisao = (revisado_por is null or %s > 0), whatsapp = %s, whatsapp_status = %s,
+                      temperatura = %s, temperatura_motivos = %s
                 where id = %s""",
             (
                 status,
@@ -255,6 +344,8 @@ def build(conn, ctx: JobContext) -> dict:
                 abertas,
                 wa_num,
                 wa_status,
+                temp,
+                Jsonb(motivos_temp),
                 lead["id"],
             ),
         )

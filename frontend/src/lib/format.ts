@@ -20,7 +20,8 @@ export const jobStatusLabel: Record<string, string> = {
 };
 
 export const categoriaLabel: Record<string, string> = {
-  oposicao: "Oposição",
+  oposicao_apresentada: "Oposição apresentada (A)",
+  oposicao: "Publicado para oposição (B)",
   exigencia: "Exigência",
   indeferimento: "Indeferimento",
   extincao_prorrogacao: "Extinção (vigência/prorrogação)",

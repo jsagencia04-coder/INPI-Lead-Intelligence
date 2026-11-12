@@ -389,7 +389,8 @@ def research_free(conn, ctx: JobContext) -> dict:
     conn.execute("update leads set pesquisado_em = coalesce(pesquisado_em, now()) where holder_id = %s", (hid,))
     if aceitos:
         queue.enqueue(
-            conn, "lead.validate_contacts", {"holder_id": hid}, dedupe_key=f"lead.validate_contacts:{hid}", prioridade=70
+            conn, "lead.validate_contacts", {"holder_id": hid}, dedupe_key=f"lead.validate_contacts:{hid}",
+            prioridade=conn.execute("select prioridade_fila_uf(geo_uf) p from holders where id = %s", (hid,)).fetchone()["p"] + 2
         )
     else:
         queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
@@ -406,15 +407,20 @@ def research_free(conn, ctx: JobContext) -> dict:
 def research_free_batch(conn, ctx: JobContext) -> dict:
     s = get_settings()
     rows = conn.execute(
-        """select l.holder_id from leads l
+        """select l.holder_id, prioridade_fila_uf(h.geo_uf) as pfila from leads l join holders h on h.id = l.holder_id
             where l.status not in ('descartado') and l.mesclado_em is null
+              -- refaz quando o CNPJ foi confirmado depois da última pesquisa (traz o domínio do e-mail da Receita)
               and not exists (select 1 from research_runs r where r.holder_id = l.holder_id and r.agente = 'research.free'
-                                and r.modelo = %s and r.iniciado_em > now() - make_interval(days => %s))
+                                and r.modelo = %s and r.iniciado_em > now() - make_interval(days => %s)
+                                and (h.geo_fonte is distinct from 'receita' or r.iniciado_em > h.geo_atualizado_em))
               and not exists (select 1 from jobs j where j.tipo = 'research.free' and j.status in ('queued','running')
                                 and (j.payload->>'holder_id')::bigint = l.holder_id)
             -- primeiro quem já tem a ausência de procurador confirmada no INPI; depois quem tem e-mail com
             -- domínio próprio na Receita (é onde a busca mais acha site e WhatsApp); depois prioridade e score
-            order by l.procurador_confirmado desc,
+            -- território primeiro (SC, RS, PR, demais; localização pendente por último), depois os demais critérios
+            order by prioridade_fila_uf(h.geo_uf),
+                     l.categoria_principal = 'oposicao_apresentada' desc,
+                     l.procurador_confirmado desc,
                      exists (select 1 from contacts c where c.holder_id = l.holder_id and c.tipo = 'email'
                                and c.verificacao <> 'invalido'
                                and split_part(c.valor_normalizado, '@', 2) <> all(%s)) desc,
@@ -424,6 +430,7 @@ def research_free_batch(conn, ctx: JobContext) -> dict:
     ).fetchall()
     for r in rows:
         queue.enqueue(
-            conn, "research.free", {"holder_id": r["holder_id"]}, dedupe_key=f"research.free:{r['holder_id']}", prioridade=85
+            conn, "research.free", {"holder_id": r["holder_id"]}, dedupe_key=f"research.free:{r['holder_id']}",
+            prioridade=50 + r["pfila"],
         )
     return {"enfileirados": len(rows)}

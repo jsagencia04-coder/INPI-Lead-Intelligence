@@ -53,5 +53,7 @@ def test_pendencias_de_falha_e_worker(conn):
     conn.execute("update schedules set proximo_em = now() - interval '1 hour', ativo = true where nome = 'rpi-descoberta'")
     with TestClient(app) as c:
         a = c.get("/api/alerts").json()
-    assert [x["chave"] for x in a[:2]] == ["worker", "falhas"] and a[0]["severidade"] == "critico"
-    assert a[1]["href"] == "/jobs?status=dead"
+    # a falha é da coleta da RPI: aparece como falha geral E como falha da RPI, todas críticas e no topo
+    assert {x["chave"] for x in a[:3]} == {"rpi_falha", "worker", "falhas"} and all(x["severidade"] == "critico" for x in a[:3])
+    assert next(x for x in a if x["chave"] == "falhas")["href"] == "/jobs?status=dead"
+    assert next(x for x in a if x["chave"] == "rpi_falha")["href"] == "/rpi-semanal"

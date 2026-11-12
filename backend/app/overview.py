@@ -5,6 +5,8 @@ Somente leitura. Tudo é calculado sobre os dados reais; nenhuma tabela é alter
 
 from datetime import UTC, datetime
 
+from app.semana import rpi_atrasada
+
 # Severidade das pendências: critico > aviso > oportunidade > info
 ORDEM = {"critico": 0, "aviso": 1, "oportunidade": 2, "info": 3}
 
@@ -63,9 +65,30 @@ def pendencias(conn) -> list[dict]:
                  and coalesce(falhou_em, criado_em) >= now() - interval '7 days') as msg_falhas,
              (select count(*) from consent_requests where status = 'enviado' and criado_em < now() - interval '7 days')
                  as pedidos_sem_resposta,
-             (select not ativo from schedules where nome = 'cnpj-receita') as receita_desligada"""
+             (select not ativo from schedules where nome = 'cnpj-receita') as receita_desligada,
+             (select count(*) from leads l join holders h on h.id = l.holder_id
+               where l.mesclado_em is null and l.status <> 'descartado' and h.geo_status = 'pendente') as geo_pendente,
+             (select count(distinct l.id) from leads l
+                join holders h on h.id = l.holder_id and h.geo_uf = 'SC'
+                join lead_processes lp on lp.lead_id = l.id
+                join opportunities o on o.numero_processo = lp.numero_processo and o.status = 'elegivel'
+               where l.mesclado_em is null and l.temperatura = 'quente'
+                 and o.edition_id = (select id from rpi_editions where status = 'parsed' order by numero desc limit 1)
+                 and l.pipeline_stage in ('lead_novo','investigando','contato_identificado','contato_validado',
+                                          'aguardando_autorizacao','elegivel_primeiro_contato')) as sc_quentes,
+             (select max(numero) from rpi_editions where status = 'parsed') as ultima_rpi,
+             (select count(*) from jobs where tipo in ('rpi.discover','rpi.collect','rpi.parse','rpi.semana') and status = 'dead'
+                 and finalizado_em >= now() - interval '7 days') as rpi_falhas"""
     ).fetchone()
+    atraso = rpi_atrasada(conn)
     itens = [
+        ("rpi_falha", "critico", q["rpi_falhas"], "Falha na coleta ou leitura da RPI", "/rpi-semanal",
+         "A edição não foi baixada ou processada. Veja a Central RPI e reprocesse."),
+        ("rpi_atrasada", "aviso", 1 if atraso else 0, "RPI desta semana ainda não disponível", "/rpi-semanal",
+         f"Nenhuma edição detectada desde terça, 14h ({atraso['horas']} h). A verificação continua a cada 10 min." if atraso else ""),
+        ("sc_quentes", "oportunidade", q["sc_quentes"],
+         f"Leads quentes de Santa Catarina na RPI {q['ultima_rpi']}" if q["ultima_rpi"] else "Leads quentes de Santa Catarina",
+         "/mapa?uf=SC&temperatura=quente", "Oportunidades de oposição de SC com contato validado, prontas para abordagem."),
         ("worker", "critico", q["atrasados"], "Agentes parados: agendamentos atrasados", "/operacao",
          "O worker não está executando a agenda. Verifique o serviço worker no servidor."),
         ("falhas", "critico", q["falhas_24h"], "Tarefas com falha nas últimas 24 h", "/jobs?status=dead",
@@ -86,6 +109,8 @@ def pendencias(conn) -> list[dict]:
          "Celulares sem prova de WhatsApp: confirme antes de usar."),
         ("pedidos", "info", q["pedidos_sem_resposta"], "Pedidos de autorização sem resposta há 7+ dias", "/contatos",
          "Encerre como sem resposta ou registre a autorização."),
+        ("geo_pendente", "info", q["geo_pendente"], "Leads com localização pendente", "/mapa?uf=PENDENTE",
+         "Sem UF confirmada nem declarada: confirme o estado para entrar na fila territorial."),
         ("receita", "aviso", 1 if q["receita_desligada"] else 0, "Base CNPJ da Receita desligada", "/operacao",
          "Sem ela não há CNPJ, telefones nem e-mails cadastrais dos titulares."),
     ]
@@ -149,7 +174,7 @@ def overview(conn, dias: int = 14) -> dict:
                 where mesclado_em is null and status <> 'descartado' group by 1"""
         ),
         "ufs": grupo(
-            """select coalesce(h.uf, '?') as chave, count(*) n from leads l join holders h on h.id = l.holder_id
+            """select coalesce(h.geo_uf, '?') as chave, count(*) n from leads l join holders h on h.id = l.holder_id
                 where l.mesclado_em is null and l.status <> 'descartado' group by 1 order by 2 desc limit 8"""
         ),
         "edicoes": grupo(

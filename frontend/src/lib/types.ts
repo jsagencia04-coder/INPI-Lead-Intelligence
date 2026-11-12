@@ -49,6 +49,11 @@ export type Process = {
 
 export type LeadListItem = {
   id: number;
+  temperatura?: "quente" | "morno" | "em_pesquisa" | null;
+  temperatura_motivos?: string[];
+  geo_uf?: string | null;
+  geo_municipio?: string | null;
+  geo_status?: string;
   titular: string;
   uf: string | null;
   tipo_provavel: string;

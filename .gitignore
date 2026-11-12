@@ -9,3 +9,6 @@ backend/data/
 frontend/node_modules/
 frontend/.next/
 logs/
+
+# Capturas de tela geradas pelo Claude
+Claude outputs/

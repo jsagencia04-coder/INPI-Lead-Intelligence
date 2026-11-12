@@ -13,6 +13,7 @@ import { agentOfEvent, type OfficeEvent, type OfficeState } from "@/office/real"
 import type { Agent, AgentStatus, DeptStatus } from "@/office/types";
 import { useDemoOffice } from "@/office/use-demo";
 import { useRealOffice, type Conexao } from "@/office/use-real";
+import { OperacaoSemanal } from "@/components/operacao-semanal";
 import { api } from "@/lib/api";
 import type { Eu } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -260,6 +261,10 @@ function Diretoria({ st, statuses, depts }: { st: OfficeState | null; statuses: 
             </div>
           ))}
         </div>
+      </div>
+      <div className="relative mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="eyebrow mb-3 text-[#e2c27c]">Operação semanal da RPI · resultados vistos pela SILVANE</div>
+        <OperacaoSemanal escuro />
       </div>
       {/* fluxo entre os setores: quem entrega trabalho para quem */}
       <div className="relative mt-5 border-t border-white/10 pt-4">

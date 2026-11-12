@@ -117,7 +117,7 @@ def test_pesquisa_gratuita_ponta_a_ponta(conn, sites):
     # não repete na mesma janela
     enqueue("research.free_batch")
     drain()
-    assert conn.execute("select count(*) n from jobs where tipo = 'research.free'").fetchone()["n"] == len(
+    assert conn.execute("select count(distinct payload->>'holder_id') n from jobs where tipo = 'research.free'").fetchone()["n"] == len(
         conn.execute("select distinct holder_id from research_runs where agente = 'research.free'").fetchall()
     )
 

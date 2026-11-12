@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   Activity, AlertTriangle, ArrowRight, BadgeCheck, BookOpen, Bot, Briefcase, Building2, CheckCircle2, Filter, Gauge, Handshake,
-  Info, MessageCircle, Send, ShieldCheck, Sparkles, Target, TrendingUp, Users,
+  Info, Map as MapIcon, MessageCircle, Radar, Send, ShieldCheck, Sparkles, Target, TrendingUp, Users,
 } from "lucide-react";
 import { BarList, Donut, Legenda, SERIE, TrendChart } from "@/components/charts";
 import { KpiCard, Secao } from "@/components/kpi-card";
+import { OperacaoSemanal } from "@/components/operacao-semanal";
 import { ErrorBox } from "@/components/page-header";
 import { useApi } from "@/components/use-api";
 import { SEVERIDADE, type Pendencia } from "@/lib/alerts";
@@ -217,6 +218,17 @@ export default function Dashboard() {
           contexto={k && <><b className="num text-foreground">{n(k.entregues)}</b> entregues · <b className="num text-foreground">{n(k.respostas)}</b> respostas</>} />
         <KpiCard rotulo="Em negociação" valor={k ? n(k.em_negociacao) : "…"} icon={Handshake} tom="rose" href="/pipeline?etapa=interessado"
           contexto={k && <><b className="num text-foreground">{n(k.fechados)}</b> fechados · conversão {k.taxa_conversao === null ? "—" : `${k.taxa_conversao}%`}</>} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Secao titulo="Operação semanal da RPI" subtitulo="Terça-feira: detecção, extração e Santa Catarina primeiro" icon={Radar} className="xl:col-span-2"
+          acao={<Link href="/rpi-semanal" className="text-xs font-medium text-primary hover:underline">Central RPI</Link>}>
+          <OperacaoSemanal />
+        </Secao>
+        <Secao titulo="Mapa de oportunidades" subtitulo="Leads por estado, prioridade SC → RS → PR" icon={MapIcon}
+          acao={<Link href="/mapa" className="text-xs font-medium text-primary hover:underline">Abrir mapa</Link>}>
+          {o && <BarList cor={SERIE(1)} itens={o.ufs.slice(0, 6).map((u) => ({ chave: u.chave, rotulo: u.chave === "?" ? "Sem UF" : u.chave, n: u.n }))} href={(c) => `/mapa?uf=${c === "?" ? "PENDENTE" : c}`} />}
+        </Secao>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

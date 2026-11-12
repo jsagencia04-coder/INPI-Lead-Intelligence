@@ -186,4 +186,7 @@ def parse(conn, ctx: JobContext) -> dict:
             where id = %s""",
         (Jsonb(resumo), revista.data, ed["id"]),
     )
+    # Operação semanal: monta os leads e começa por Santa Catarina, sem esperar a agenda de hora em hora.
+    if s.rpi_operacao_semanal_auto:
+        queue.enqueue(conn, "rpi.semana", {"numero": numero}, dedupe_key=f"rpi.semana:{numero}", prioridade=5, parent_id=ctx.job["id"])
     return resumo
