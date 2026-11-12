@@ -7,7 +7,7 @@ Estado em 11/11/2026. Entrega em etapas, conforme a Fase 13 do escopo.
 | 1. Auditar a versão existente | Feita (este documento + `AUDITORIA_V1.5.md`) |
 | 2. Apresentar as migrations | Feita (seção 2) |
 | 3. Central de contatos | **Implementada e testada** (seção 3) |
-| 4. Autorização e pipeline | **Regra de consentimento implementada e testada** (registro, revogação, pedido por e-mail, elegibilidade regra a regra, bloqueio no envio). Pipeline de 17 etapas: pendente |
+| 4. Autorização e pipeline | **Regra de consentimento implementada e testada** (registro, revogação, pedido por e-mail, elegibilidade regra a regra, bloqueio no envio). Pipeline de 17 etapas com jornada: **implementado e testado** (migration 0013, tela Pipeline comercial) |
 | 5. API oficial do WhatsApp | **Implementada e testada com a Meta simulada** (ver `WHATSAPP_API.md`); envio real restrito a números de homologação e a login obrigatório |
 | Segurança (Fase 12) | **Implementada e testada** (ver `SEGURANCA.md`): login próprio, perfis, ambientes, SSRF, dados fictícios, limite de taxa |
 | 6. Testes em homologação | Pendente |

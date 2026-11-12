@@ -185,6 +185,15 @@ def state() -> dict:
         return office_state(conn)
 
 
+@router.get("/stats")
+def stats(dias: int = Query(7, ge=1, le=90)) -> dict:
+    """Desempenho de cada agente real (tipo de job) no período."""
+    from app.overview import agent_stats
+
+    with db.get_pool().connection() as conn:
+        return {"dias": dias, "tipos": agent_stats(conn, dias)}
+
+
 @router.get("/events")
 def events(after: int = 0, limit: int = Query(100, le=500)) -> list[dict]:
     with db.get_pool().connection() as conn:

@@ -9,7 +9,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db, security
-from app.api import auth_routes, consent_routes, contact_routes, lead_routes, office_routes, rpi_routes, whatsapp_routes
+from app.api import (
+    auth_routes,
+    consent_routes,
+    contact_routes,
+    lead_routes,
+    office_routes,
+    pipeline_routes,
+    rpi_routes,
+    whatsapp_routes,
+)
 from app.api.routes import public, router
 from app.config import get_settings
 from app.jobs.registry import load_agents
@@ -45,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(lead_routes.router)
     app.include_router(contact_routes.router)
     app.include_router(consent_routes.router)
+    app.include_router(pipeline_routes.router)
     app.include_router(whatsapp_routes.router)
     app.include_router(whatsapp_routes.webhook)
     app.include_router(office_routes.router)

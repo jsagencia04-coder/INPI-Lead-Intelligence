@@ -24,6 +24,14 @@ export type Agent = {
   modelo: string; // "sem IA" para agentes determinísticos
   mesa: { x: number; y: number }; // posição da mesa na sala (tiles)
   visual: { cabelo: string; pele: string; camisa: string; calca: string; destaque: string };
+  /** o que o agente sabe fazer melhor (texto da Central de Operações) */
+  especialidade?: string;
+  /** módulo da plataforma onde o trabalho do agente aparece */
+  modulo?: { href: string; rotulo: string };
+  /** tarefa que um administrador pode disparar na hora (tipo de job seguro, sem download pesado) */
+  executar?: string;
+  /** liderança (SILVANE, Diretoria) */
+  lider?: boolean;
 };
 
 export type AgentStatus = {

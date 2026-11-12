@@ -45,7 +45,7 @@ def database():
 def clean(database):
     with psycopg.connect(database, autocommit=True) as c:
         c.execute(
-            """truncate consent_requests, app_users, wa_webhook_events, wa_messages, consents, jobs,
+            """truncate lead_stage_history, consent_requests, app_users, wa_webhook_events, wa_messages, consents, jobs,
                 audit_log, review_tasks, outreach_log, lead_processes, leads,
                contacts, evidences, research_runs, inpi_verifications, process_holders, opportunities,
                holders, publications, processes, rpi_files, rpi_editions, llm_calls, lead_notes, reports,

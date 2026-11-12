@@ -19,6 +19,7 @@ const TAREFAS_DEMO: Record<string, string[]> = {
   validador: ["Conferir e-mail na página de origem", "Validar telefone"],
   qualificador: ["Calcular score dos leads", "Deduplicar por CNPJ"],
   redator: ["Escrever sugestão de abordagem"],
+  mensageiro: ["Conferir elegibilidade do contato", "Acompanhar status de entrega"],
   relator: ["Consolidar relatório da semana"],
 };
 

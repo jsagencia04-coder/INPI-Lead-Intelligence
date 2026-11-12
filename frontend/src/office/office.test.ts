@@ -117,3 +117,19 @@ describe("dados reais", () => {
     expect(mergeEvents([], [e(1), e(2), e(3)], 2).map((x) => x.id)).toEqual([2, 3]);
   });
 });
+
+describe("identidade da Diretoria", () => {
+  it("a agente da Diretoria se chama SILVANE e mantém o identificador e a função", () => {
+    const s = AGENTES.find((a) => a.departamento === "diretoria")!;
+    expect(s.nome).toBe("SILVANE");
+    expect(s.id).toBe("coordenador");
+    expect(s.jobTypes).toEqual(["scheduler", "system.ping"]);
+    expect(s.lider).toBe(true);
+    expect(AGENTES.filter((a) => a.lider)).toHaveLength(1);
+  });
+  it("todo agente tem especialidade e os novos tipos de job têm responsável", () => {
+    for (const a of AGENTES) expect(a.especialidade?.length).toBeGreaterThan(20);
+    const todos = AGENTES.flatMap((a) => a.jobTypes);
+    for (const t of ["whatsapp.send", "cnpj.recontatos"]) expect(todos).toContain(t);
+  });
+});

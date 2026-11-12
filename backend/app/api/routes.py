@@ -5,7 +5,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app import db
+from app import db, overview
 from app.auth import User, current_user
 from app.jobs import queue
 from app.jobs.registry import registered_types
@@ -27,6 +27,20 @@ def health() -> dict:
 def dashboard_summary() -> dict:
     with db.get_pool().connection() as conn:
         return conn.execute("select * from v_dashboard_summary").fetchone()
+
+
+@router.get("/dashboard/overview")
+def dashboard_overview(dias: int = Query(14, ge=7, le=90)) -> dict:
+    """Painel executivo: indicadores, séries diárias, distribuição, pendências e desempenho dos agentes."""
+    with db.get_pool().connection() as conn:
+        return overview.overview(conn, dias)
+
+
+@router.get("/alerts")
+def alerts() -> list[dict]:
+    """Pendências priorizadas (sino de notificações e contadores do menu)."""
+    with db.get_pool().connection() as conn:
+        return overview.pendencias(conn)
 
 
 @router.get("/dashboard/history")
