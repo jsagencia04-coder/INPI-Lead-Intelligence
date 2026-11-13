@@ -117,6 +117,15 @@ REGRAS: list[tuple[str, str, str | None, str]] = [
     ("PUT", "/api/uf-prioridade", None, "admin"),
     ("POST", "/api/rpi-semana", None, "operador"),
     ("POST", "/api/reviews", "/resolve", "revisor"),
+    # V2.5 primeiro contato: gerar/editar = operador; aprovar/enviar/rejeitar/reconciliar = revisor
+    ("POST", "/api/primeiro-contato", "/rascunho", "operador"),
+    ("PATCH", "/api/rascunhos", None, "operador"),
+    ("POST", "/api/rascunhos", "/abrir-whatsapp", "operador"),
+    ("POST", "/api/rascunhos", None, "revisor"),
+    ("POST", "/api/wa-mensagens", "/reconciliar", "revisor"),
+    ("POST", "/api/integracao-whatsapp", "/testar", "operador"),
+    ("POST", "/api/integracao-whatsapp", "/desativar-envios", "operador"),  # qualquer operador pode parar tudo
+    ("POST", "/api/integracao-whatsapp", "/reativar-envios", "admin"),
     ("POST", "/api/whatsapp/messages", "/cancel", "operador"),
     ("POST", "/api/whatsapp/messages", None, "revisor"),
     ("POST", "/api/whatsapp/template", None, "operador"),
@@ -156,6 +165,14 @@ def problemas_de_configuracao(s: Settings) -> list[str]:
             p.append("produção não pode usar a senha padrão do banco ('postgres')")
         if s.whatsapp_envio_ativo and not s.whatsapp_app_secret:
             p.append("envio de WhatsApp ativo exige WHATSAPP_APP_SECRET (webhooks assinados)")
+    # V2.5: envio real pela Evolution exige login, webhook protegido e o número autorizado
+    if s.mensageria_provedor == "evolution" and s.evolution_send_enabled and not s.evolution_simulation:
+        if s.auth_mode == "dev" and s.app_env != "demo":
+            p.append("envio real pela Evolution exige login (AUTH_MODE=local ou supabase)")
+        if not s.evolution_numero_autorizado:
+            p.append("envio real pela Evolution exige EVOLUTION_NUMERO_AUTORIZADO (o número do INPI Agent)")
+    if s.evolution_webhook_token is not None and len(s.evolution_webhook_token) < 24:
+        p.append("EVOLUTION_WEBHOOK_TOKEN precisa ter pelo menos 24 caracteres")
     return p
 
 

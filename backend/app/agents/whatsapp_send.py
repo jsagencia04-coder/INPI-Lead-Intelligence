@@ -2,7 +2,7 @@
 
 import httpx
 
-from app import wa_cloud
+from app import primeiro_contato, wa_cloud
 from app.jobs.registry import JobContext, RetryLater, handler
 
 INCERTO = "resultado incerto: a Meta pode ter recebido. Não reenviado automaticamente para evitar duplicidade"
@@ -55,3 +55,9 @@ def whatsapp_send(conn, ctx: JobContext) -> dict:
     if resp.status_code >= 500:
         return fim("falhou", f"{INCERTO} (HTTP {resp.status_code})", codigo)
     return fim("falhou", f"recusada pela Meta: {texto}", codigo)
+
+
+@handler("whatsapp.evolution_send")
+def evolution_send(conn, ctx: JobContext) -> dict:
+    """Primeiro contato pela Evolution: confere tudo de novo e faz UMA tentativa (sem repetição automática)."""
+    return primeiro_contato.executar_envio(conn, int(ctx.payload["message_id"]))

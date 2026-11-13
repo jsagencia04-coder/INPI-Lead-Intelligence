@@ -45,13 +45,14 @@ def database():
 def clean(database):
     with psycopg.connect(database, autocommit=True) as c:
         c.execute(
-            """truncate oportunidades_servico, process_peticoes, rpi_operacoes, cnpj_municipios, lead_stage_history, consent_requests, app_users, wa_webhook_events, wa_messages, consents, jobs,
+            """truncate wa_auditoria, wa_rascunhos, wa_contas, oportunidades_servico, process_peticoes, rpi_operacoes, cnpj_municipios, lead_stage_history, consent_requests, app_users, wa_webhook_events, wa_messages, consents, jobs,
                 audit_log, review_tasks, outreach_log, lead_processes, leads,
                contacts, evidences, research_runs, inpi_verifications, process_holders, opportunities,
                holders, publications, processes, rpi_files, rpi_editions, llm_calls, lead_notes, reports,
                exports_log, suppression_list, cnpj_estabelecimentos, cnpj_empresas, agent_events restart identity cascade"""
         )
         c.execute("update app_config set valor = 'demo' where chave = 'ambiente'")
+        c.execute("update app_config set valor = 'false' where chave = 'whatsapp_envio_bloqueado'")
         c.execute("delete from despacho_types where fonte like 'detectado%'")
         c.execute(
             "update despacho_types set ativo_para_leads = categoria_comercial not in ('outro','arquivamento'),"

@@ -22,6 +22,7 @@ ENV = {
     "WHATSAPP_PHONE_NUMBER_ID": "111", "WHATSAPP_BUSINESS_ACCOUNT_ID": "222", "WHATSAPP_ACCESS_TOKEN": "token-de-teste",
     "WHATSAPP_VERIFY_TOKEN": "verifica-123", "WHATSAPP_APP_SECRET": SEGREDO, "WHATSAPP_TEMPLATE_NAME": "primeiro_contato",
     "WHATSAPP_ENVIO_ATIVO": "true", "WHATSAPP_NUMEROS_TESTE": NUM, "AUTH_MODE": "supabase",
+    "MENSAGERIA_PROVEDOR": "meta",  # estes testes cobrem o provedor Meta (desligado por padrão desde a V2.5)
 }  # fmt: skip
 
 

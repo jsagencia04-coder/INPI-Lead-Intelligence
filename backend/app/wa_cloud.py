@@ -192,6 +192,8 @@ def criar_saida(conn, *, lead_id: int, contact_id: int, numero_processo: str | N
 def bloqueio(conn, msg: dict) -> str | None:
     """Motivo pelo qual a mensagem NÃO pode sair agora (None = pode). Negar é o padrão."""
     s = get_settings()
+    if s.mensageria_provedor != "meta":
+        return f"Cloud API da Meta desativada: o provedor de envio é '{s.mensageria_provedor}'"
     if not s.whatsapp_envio_ativo:
         return "envio desligado (WHATSAPP_ENVIO_ATIVO=false)"
     if not configurado(s):

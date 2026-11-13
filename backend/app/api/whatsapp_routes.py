@@ -152,5 +152,7 @@ async def receive(request: Request) -> dict:
         raise HTTPException(400, "JSON inválido") from exc
     if not isinstance(payload, dict):
         raise HTTPException(400, "JSON inválido")
+    if s.mensageria_provedor != "meta":
+        return {"ignorado": "Cloud API da Meta desativada (um provedor por vez)"}
     with db.transaction("webhook:whatsapp") as conn:
         return wa_cloud.processar_webhook(conn, payload)

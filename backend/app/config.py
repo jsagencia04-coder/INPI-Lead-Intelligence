@@ -113,6 +113,24 @@ class Settings(BaseSettings):
     whatsapp_limite_por_minuto: int = 10
     whatsapp_limite_por_dia: int = 50
 
+    # V2.5 — provedor do primeiro contato. Só UM provedor envia: manual (padrão), evolution ou meta.
+    mensageria_provedor: Literal["manual", "evolution", "meta"] = "manual"
+    # Evolution API (instância exclusiva do INPI Agent). A chave é o token DA INSTÂNCIA, nunca a chave global.
+    evolution_base_url: str | None = None  # ex.: https://evo-evolution-api.xxxx.easypanel.host
+    evolution_instance_name: str = "inpi-agent"
+    evolution_api_key: str | None = None
+    evolution_webhook_token: str | None = None  # segredo que vai na URL do webhook (?token=...)
+    evolution_numero_autorizado: str | None = None  # +55... do número do INPI Agent: envio bloqueado se for outro
+    # Duas travas: simulação ligada OU envio desligado = nada sai do sistema.
+    evolution_send_enabled: bool = False
+    evolution_simulation: bool = True
+    # Durante o teste real controlado, só estes números (E.164, separados por vírgula) podem receber.
+    evolution_numeros_teste: str = ""
+    evolution_timeout_segundos: float = 20.0
+    # Como você se apresenta na primeira mensagem (ex.: "Julio, consultor em registro de marcas").
+    # Vazio = o rascunho sai com a lacuna [seu nome], que precisa ser preenchida antes de aprovar.
+    primeiro_contato_remetente: str | None = None
+
     # Worker
     worker_id: str = "worker-local"
     worker_poll_seconds: float = 2.0

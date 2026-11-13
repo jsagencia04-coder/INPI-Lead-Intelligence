@@ -32,6 +32,17 @@ services:
       WHATSAPP_TEMPLATE_NAME: "${WHATSAPP_TEMPLATE_NAME:-}"
       WHATSAPP_ENVIO_ATIVO: "${WHATSAPP_ENVIO_ATIVO:-false}"
       WHATSAPP_NUMEROS_TESTE: "${WHATSAPP_NUMEROS_TESTE:-}"
+      # V2.5 primeiro contato pela Evolution API (instância exclusiva). Segredos só aqui, nunca no código.
+      MENSAGERIA_PROVEDOR: "${MENSAGERIA_PROVEDOR:-manual}"
+      EVOLUTION_BASE_URL: "${EVOLUTION_BASE_URL:-}"
+      EVOLUTION_INSTANCE_NAME: "${EVOLUTION_INSTANCE_NAME:-inpi-agent}"
+      EVOLUTION_API_KEY: "${EVOLUTION_API_KEY:-}"
+      EVOLUTION_WEBHOOK_TOKEN: "${EVOLUTION_WEBHOOK_TOKEN:-}"
+      EVOLUTION_NUMERO_AUTORIZADO: "${EVOLUTION_NUMERO_AUTORIZADO:-}"
+      EVOLUTION_SEND_ENABLED: "${EVOLUTION_SEND_ENABLED:-false}"
+      EVOLUTION_SIMULATION: "${EVOLUTION_SIMULATION:-true}"
+      EVOLUTION_NUMEROS_TESTE: "${EVOLUTION_NUMEROS_TESTE:-}"
+      PRIMEIRO_CONTATO_REMETENTE: "${PRIMEIRO_CONTATO_REMETENTE:-}"
     volumes: [dados:/srv/backend/data]
     depends_on: { db: { condition: service_healthy } }
     restart: unless-stopped

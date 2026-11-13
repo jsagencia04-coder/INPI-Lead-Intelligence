@@ -1,7 +1,7 @@
 /** Mapa de navegação da plataforma: grupos, páginas, ícones e cores de identidade de cada módulo. */
 import {
   Activity, BarChart3, BookOpen, Building2, ClipboardCheck, Contact, FileText, Filter, LayoutDashboard, ListChecks,
-  Map as MapIcon, MessageCircle, Radar, Scale, Settings2, ShieldCheck, Users, type LucideIcon,
+  Map as MapIcon, MessageCircle, PlugZap, Radar, Scale, Send, Settings2, ShieldCheck, Users, type LucideIcon,
 } from "lucide-react";
 
 export type Tom = "violet" | "indigo" | "blue" | "cyan" | "emerald" | "amber" | "orange" | "rose" | "slate";
@@ -34,6 +34,8 @@ export const NAV: NavGrupo[] = [
       { href: "/pipeline", label: "Pipeline comercial", icon: Filter, tom: "rose", descricao: "Funil de 17 etapas e a jornada de cada lead", alerta: ["respostas", "elegiveis"] },
       { href: "/leads", label: "Leads", icon: Users, tom: "orange", descricao: "Titulares qualificados, prioridade e aprovação", alerta: ["aprovar"] },
       { href: "/contatos", label: "Central de contatos", icon: Contact, tom: "emerald", descricao: "WhatsApp, telefones, e-mails, origem e autorização" },
+      { href: "/primeiro-contato", label: "Primeiro contato", icon: Send, tom: "emerald", descricao: "Mensagem sugerida pela IA, aprovada por você e enviada só com autorização" },
+      { href: "/integracao-whatsapp", label: "Integração WhatsApp", icon: PlugZap, tom: "cyan", descricao: "Evolution API: conexão, simulação e botão de emergência" },
       { href: "/whatsapp", label: "WhatsApp Business", icon: MessageCircle, tom: "emerald", descricao: "API oficial, mensagens e status de entrega", alerta: ["msg_falhas"] },
     ],
   },
