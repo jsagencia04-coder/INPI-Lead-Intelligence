@@ -1,6 +1,6 @@
 """Primeiro contato supervisionado (V2.5).
 
-Fluxo: rascunho (IA ou modelo) → edição livre → aprovação humana presa ao conteúdo, número, canal e versão →
+Fluxo: rascunho (um dos 3 modelos do banco, personalizado com dados verdadeiros — V2.7) → edição livre → aprovação humana presa ao conteúdo, número, canal e versão →
 verificações no backend → UM envio pela Evolution (ou simulação) → registro → fim da automação daquela conversa.
 Respostas: só pela pessoa, no app WhatsApp Business. Não há chatbot, resposta automática, follow-up nem envio em massa.
 
@@ -14,7 +14,7 @@ import re
 
 from psycopg.types.json import Jsonb
 
-from app import consent, db, evolution, llm
+from app import consent, db, evolution, modelos
 from app.config import get_settings
 from app.jobs import queue
 
@@ -22,6 +22,7 @@ ROTULO_SERVICO = {"manifestacao_oposicao": "manifestação à oposição", "recu
 PLACEHOLDER = re.compile(r"\[[^\]]{2,40}\]")  # ex.: [seu nome] — impede aprovar texto com lacunas
 LINHA_SAIR = "Se preferir não receber mensagens, responda SAIR."
 PAPEIS_APROVAR = ("revisor", "admin")
+MAX_TENTATIVAS_POR_RASCUNHO = 3  # só depois de falha definitiva (conexão recusada); resultado incerto nunca é repetido
 
 
 class Recusado(Exception):
@@ -33,7 +34,8 @@ def sha(v: str) -> str:
 
 
 def hash_aprovacao(r: dict) -> str:
-    return sha(f"{r['conteudo']}|{r['numero']}|{r['canal']}|{r['versao']}")
+    """A aprovação fica presa ao texto exato, destinatário, canal, versão, modelo e finalidade (V2.7)."""
+    return sha(f"{r['conteudo']}|{r['numero']}|{r['canal']}|{r['versao']}|{r.get('modelo_id') or ''}|{r.get('finalidade') or ''}")
 
 
 def auditar(conn, acao: str, lead_id: int | None, **detalhes) -> None:
@@ -59,79 +61,12 @@ def fatos(conn, lead_id: int) -> dict:
         """select os.*, p.marca_nome from oportunidades_servico os
              join processes p on p.numero_processo = os.numero_processo
              join lead_processes lp on lp.numero_processo = os.numero_processo
-            where lp.lead_id = %s and os.situacao_processual = 'aberta'
-            order by case os.classificacao when 'quente' then 0 when 'morno' then 1 else 2 end, os.prazo_fim nulls last limit 1""",
+            where lp.lead_id = %s
+            order by (os.elegivel and os.rpi_numero >= rpi_edicao_minima()) desc, (os.situacao_processual = 'aberta') desc,
+                     prioridade_servico(os.servico), os.rpi_numero desc, os.prazo_fim nulls last limit 1""",
         (lead_id,),
     ).fetchone()
     return {"lead": lead, "oportunidade": op}
-
-
-def modelo_padrao(f: dict) -> str:
-    s = get_settings()
-    rem = s.primeiro_contato_remetente or "[seu nome]"
-    op = f["oportunidade"]
-    if op:
-        marca = f'"{op["marca_nome"]}"' if op["marca_nome"] else "da sua marca"
-        evento = "recebeu uma oposição de terceiro" if op["servico"] == "manifestacao_oposicao" else (
-            "foi deferido parcialmente" if op["tipo_decisao"] == "deferimento_parcial" else "foi indeferido")  # fmt: skip
-        prazo = f" O prazo legal estimado vai até {op['prazo_fim']:%d/%m/%Y} (vale confirmar no processo)." if op["prazo_fim"] else ""
-        corpo = (
-            f"Olá! Aqui é {rem}. Vi na Revista da Propriedade Industrial (RPI nº {op['rpi_numero']}) que o pedido de "
-            f"registro {marca}, processo {op['numero_processo']}, {evento}.{prazo}\n\n"
-            f"Trabalho com {ROTULO_SERVICO[op['servico']]} e posso explicar como funciona, sem compromisso. Podemos conversar?"
-        )
-    else:
-        corpo = f"Olá! Aqui é {rem}. Acompanho publicações de marcas no INPI e vi um andamento no seu processo. Podemos conversar?"
-    return f"{corpo}\n\n{LINHA_SAIR}"
-
-
-SISTEMA_IA = """Você escreve, em português do Brasil, UMA primeira mensagem curta de WhatsApp (até 600 caracteres) para o \
-titular de um pedido de marca no INPI. Use SOMENTE os fatos fornecidos. Não invente nomes, valores, prazos, resultados \
-nem urgência. Não prometa resultado nem diga que o titular "vai perder a marca". Prazos são estimativas: diga isso. \
-Apresente quem escreve usando exatamente o texto de "remetente". Tom cordial e profissional, sem emojis em excesso, \
-sem links. Termine com uma pergunta simples. Responda chamando a ferramenta registrar_mensagem."""
-FERRAMENTA = {
-    "name": "registrar_mensagem",
-    "description": "Registra a mensagem final.",
-    "input_schema": {"type": "object", "required": ["mensagem"], "properties": {"mensagem": {"type": "string"}}},
-}
-
-
-def gerar_texto(conn, f: dict) -> tuple[str, str]:
-    """IA (quando configurada e com orçamento) ou modelo fixo. A IA nunca aprova nem envia."""
-    s = get_settings()
-    base = modelo_padrao(f)
-    if not s.anthropic_api_key:
-        return base, "modelo-padrao"
-    op = f["oportunidade"]
-    dados = {
-        "remetente": s.primeiro_contato_remetente or "[seu nome]",
-        "titular": f["lead"]["titular"],
-        "servico_oferecido": ROTULO_SERVICO.get(op["servico"]) if op else None,
-        "ocorrencia": (op["tipo_decisao"] if op else None),
-        "marca": op["marca_nome"] if op else None,
-        "processo": op["numero_processo"] if op else None,
-        "rpi": op["rpi_numero"] if op else None,
-        "data_publicacao": op["data_publicacao"] if op else None,
-        "prazo_estimado": op["prazo_fim"] if op else None,
-        "mensagem_base": base,
-    }
-    try:
-        llm.ensure_budget(conn, 0.01)
-        res = llm.call(model=s.modelo_resumo, system=SISTEMA_IA, tools=[FERRAMENTA],
-                       tool_choice={"type": "tool", "name": "registrar_mensagem"}, max_tokens=500,
-                       messages=[{"role": "user", "content": json.dumps(dados, ensure_ascii=False, default=str)}])  # fmt: skip
-        with db.transaction("agent:primeiro-contato") as c2:
-            llm.record(c2, res, proposito="primeiro_contato", modelo=s.modelo_resumo, job_id=None, holder_id=f["lead"]["holder_id"])
-        out = next((b["input"] for b in res.content if b.get("type") == "tool_use"), None)
-        texto = (out or {}).get("mensagem", "").strip()
-    except (llm.BudgetExceeded, llm.LLMNotConfigured, RuntimeError):
-        texto = ""
-    if not texto or len(texto) > 900 or "http" in texto.lower():
-        return base, "modelo-padrao"
-    if "SAIR" not in texto.upper():
-        texto = f"{texto}\n\n{LINHA_SAIR}"
-    return texto, f"ia:{s.modelo_resumo}"
 
 
 # ------------------------------------------------------------------ rascunho
@@ -147,27 +82,50 @@ def contato_whatsapp(conn, lead_id: int, contact_id: int | None) -> dict:
     return c
 
 
-def criar_rascunho(conn, lead_id: int, contact_id: int | None, ator: str) -> dict:
+def personalizar(conn, f: dict, codigo: str | None) -> dict:
+    """Escolhe o modelo (sugerido pela oportunidade ou escolhido pela pessoa) e substitui as variáveis."""
+    op = f["oportunidade"]
+    codigo = codigo or modelos.sugerido(op)
+    try:
+        m = modelos.obter(conn, codigo)
+    except modelos.ModeloInvalido as exc:
+        raise Recusado(str(exc)) from exc
+    if not m["ativo"]:
+        raise Recusado(f"O {m['nome']} ({codigo}) está inativo")
+    if not modelos.compativel(codigo, op):
+        raise Recusado(f"O {m['nome']} não combina com a finalidade deste lead: use o modelo sugerido ou o institucional")
+    texto, alertas, usadas = modelos.renderizar(m["texto"], modelos.valores(conn, f["lead"], op))
+    return {"modelo": m, "texto": texto, "alertas": alertas, "variaveis": usadas}
+
+
+def criar_rascunho(conn, lead_id: int, contact_id: int | None, ator: str, modelo: str | None = None) -> dict:
     c = contato_whatsapp(conn, lead_id, contact_id)
     aberto = conn.execute(
         "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')", (lead_id, c["id"])
     ).fetchone()
     f = fatos(conn, lead_id)
-    texto, autor = gerar_texto(conn, f)
+    p = personalizar(conn, f, modelo)
+    m, texto = p["modelo"], p["texto"]
+    autor = f"modelo:{m['codigo']}:v{m['versao']}"
+    campos = (texto, sha(texto), autor, m["id"], m["versao"], m["texto"], m["finalidade"], Jsonb(p["variaveis"]), Jsonb(p["alertas"]))
     if aberto:  # gerar de novo = nova versão; qualquer aprovação anterior deixa de valer
         r = conn.execute(
             """update wa_rascunhos set conteudo = %s, conteudo_hash = %s, versao = versao + 1, status = 'rascunho',
-                      gerado_por = %s, aprovado_por = null, aprovado_em = null, aprovacao_hash = null where id = %s returning *""",
-            (texto, sha(texto), autor, aberto["id"]),
+                      gerado_por = %s, modelo_id = %s, modelo_versao = %s, modelo_texto = %s, finalidade = %s,
+                      variaveis = %s, alertas = %s, aprovado_por = null, aprovado_em = null, aprovacao_hash = null
+                where id = %s returning *""",
+            (*campos, aberto["id"]),
         ).fetchone()
     else:
         r = conn.execute(
-            """insert into wa_rascunhos (lead_id, contact_id, numero_processo, numero, canal, conteudo, conteudo_hash, gerado_por)
-               values (%s,%s,%s,%s,%s,%s,%s,%s) returning *""",
+            """insert into wa_rascunhos (lead_id, contact_id, numero_processo, numero, canal, conteudo, conteudo_hash, gerado_por,
+                                         modelo_id, modelo_versao, modelo_texto, finalidade, variaveis, alertas)
+               values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning *""",
             (lead_id, c["id"], f["oportunidade"]["numero_processo"] if f["oportunidade"] else None, c["valor_normalizado"],
-             "evolution" if get_settings().mensageria_provedor == "evolution" else "manual", texto, sha(texto), autor),
+             "evolution" if get_settings().mensageria_provedor == "evolution" else "manual", *campos),
         ).fetchone()  # fmt: skip
-    auditar(conn, "rascunho_gerado", lead_id, rascunho_id=r["id"], versao=r["versao"], gerado_por=autor)
+    auditar(conn, "rascunho_gerado", lead_id, rascunho_id=r["id"], versao=r["versao"], modelo=m["codigo"],
+            modelo_versao=m["versao"], alertas=p["alertas"])  # fmt: skip
     return r
 
 
@@ -255,9 +213,28 @@ def verificacoes(conn, r: dict, *, papel: str | None = None, conexao: dict | Non
     ).fetchone()
     v.append(ok("sem_envio_anterior", anterior is None, "Nenhum envio anterior para este contato",
                 "Já houve envio para este contato: o primeiro contato é único (sem follow-up automático)"))  # fmt: skip
+    if r.get("modelo_id"):
+        m = conn.execute("select codigo, nome, ativo from wa_modelos where id = %s", (r["modelo_id"],)).fetchone()
+        v.append(ok("modelo_ativo", m and m["ativo"], f"Modelo ativo: {m['nome'] if m else '?'}",
+                    "O modelo usado nesta mensagem foi desativado: gere de novo com um modelo ativo"))  # fmt: skip
+    if PLACEHOLDER.search(r["conteudo"]):
+        v.append(ok("conteudo_final", False, "", "A mensagem ainda tem lacunas entre colchetes"))
+    tentativas = conn.execute("select count(*) n from wa_messages where rascunho_id = %s and modo = 'real' and id is distinct from %s",
+                              (r["id"], mensagem_atual)).fetchone()["n"]  # fmt: skip
+    v.append(ok("tentativas", tentativas < MAX_TENTATIVAS_POR_RASCUNHO, "Sem tentativas repetidas",
+                f"Limite de {MAX_TENTATIVAS_POR_RASCUNHO} tentativas para esta mensagem atingido"))  # fmt: skip
     if papel is not None:
         v.append(ok("usuario", papel in PAPEIS_APROVAR, "Usuário com permissão comercial", "Só revisor ou administrador envia"))
     if real:
+        limite = int((conn.execute("select valor from app_config where chave = 'whatsapp_limite_diario'").fetchone() or {"valor": "20"})["valor"])
+        hoje = conn.execute(
+            """select count(*) n from wa_messages where direcao = 'saida' and modo = 'real' and provedor = 'evolution'
+                 and status not in ('bloqueada','cancelada') and criado_em >= date_trunc('day', now() at time zone 'America/Sao_Paulo')
+                 at time zone 'America/Sao_Paulo' and id is distinct from %s""",
+            (mensagem_atual,),
+        ).fetchone()["n"]
+        v.append(ok("limite_diario", hoje < limite, f"Dentro do limite diário ({hoje} de {limite})",
+                    f"Limite diário de {limite} primeiros contatos atingido"))  # fmt: skip
         teste = evolution.numeros_teste(s)
         if teste:
             v.append(ok("numero_teste", r["numero"] in teste, "Número na lista do teste controlado",
@@ -275,8 +252,14 @@ def bloqueios(v: list[dict]) -> list[str]:
 
 
 # ------------------------------------------------------------------ envio
-def solicitar_envio(conn, rid: int, ator: str, papel: str) -> dict:
-    """Valida tudo e cria UM registro de envio. Em simulação, nada sai do sistema."""
+def solicitar_envio(conn, rid: int, ator: str, papel: str, chave: str | None = None) -> dict:
+    """Valida tudo e cria UM registro de envio. Em simulação, nada sai do sistema.
+    `chave` = idempotência do clique: o mesmo clique repetido (rede, duplo clique) devolve o mesmo envio, nunca cria outro."""
+    if chave:
+        existente = conn.execute("select * from wa_messages where idempotency_key in (%s, %s)",
+                                 (f"evo:{rid}:{chave}", f"evo:sim:{rid}:{chave}")).fetchone()  # fmt: skip
+        if existente:
+            return existente
     r = _aberto(conn, rid)
     s = get_settings()
     real = evolution.modo(s) == "real"
@@ -285,21 +268,21 @@ def solicitar_envio(conn, rid: int, ator: str, papel: str) -> dict:
     if falhas:
         auditar(conn, "envio_bloqueado", r["lead_id"], rascunho_id=rid, motivos=falhas)
         raise Recusado("Envio bloqueado: " + "; ".join(falhas))
-    tentativa = conn.execute("select count(*) n from wa_messages where rascunho_id = %s", (rid,)).fetchone()["n"] + 1
-    dados = (r["contact_id"], r["lead_id"], r["numero_processo"], r["numero"], r["conteudo"], s.evolution_instance_name, rid)
+    tentativa = chave or str(conn.execute("select count(*) n from wa_messages where rascunho_id = %s", (rid,)).fetchone()["n"] + 1)
+    dados = (r["contact_id"], r["lead_id"], r["numero_processo"], r["numero"], r["conteudo"], s.evolution_instance_name, rid, r.get("modelo_id"))
     if not real:
         m = conn.execute(
             """insert into wa_messages (direcao, modo, provedor, contact_id, lead_id, numero_processo, numero, tipo, corpo,
-                                        instancia, rascunho_id, idempotency_key, status, motivo, criado_por)
-               values ('saida','simulacao','evolution',%s,%s,%s,%s,'texto',%s,%s,%s,%s,'simulada',%s,%s) returning *""",
+                                        instancia, rascunho_id, modelo_id, idempotency_key, status, motivo, criado_por)
+               values ('saida','simulacao','evolution',%s,%s,%s,%s,'texto',%s,%s,%s,%s,%s,'simulada',%s,%s) returning *""",
             (*dados, f"evo:sim:{rid}:{tentativa}", "simulação: nada foi enviado (EVOLUTION_SIMULATION ou envio desligado)", ator),
         ).fetchone()
         auditar(conn, "envio_simulado", r["lead_id"], rascunho_id=rid, mensagem_id=m["id"])
         return m
     m = conn.execute(
         """insert into wa_messages (direcao, modo, provedor, contact_id, lead_id, numero_processo, numero, tipo, corpo,
-                                    instancia, rascunho_id, idempotency_key, status, criado_por)
-           values ('saida','real','evolution',%s,%s,%s,%s,'texto',%s,%s,%s,%s,'na_fila',%s) returning *""",
+                                    instancia, rascunho_id, modelo_id, idempotency_key, status, criado_por)
+           values ('saida','real','evolution',%s,%s,%s,%s,'texto',%s,%s,%s,%s,%s,'na_fila',%s) returning *""",
         (*dados, f"evo:{rid}:{tentativa}", ator),
     ).fetchone()
     queue.enqueue(conn, "whatsapp.evolution_send", {"message_id": m["id"]}, dedupe_key=f"whatsapp.evolution_send:{m['id']}", prioridade=5)

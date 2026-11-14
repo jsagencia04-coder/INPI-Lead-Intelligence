@@ -123,6 +123,9 @@ REGRAS: list[tuple[str, str, str | None, str]] = [
     ("POST", "/api/rascunhos", "/abrir-whatsapp", "operador"),
     ("POST", "/api/rascunhos", None, "revisor"),
     ("POST", "/api/wa-mensagens", "/reconciliar", "revisor"),
+    # V2.7 modelos: editar textos e remetente = admin (PUT cai no padrão admin); prévia = operador
+    ("POST", "/api/wa-modelos", "/previa", "operador"),
+    ("POST", "/api/primeiro-contato-respostas", "/vistas", "operador"),
     ("POST", "/api/integracao-whatsapp", "/testar", "operador"),
     ("POST", "/api/integracao-whatsapp", "/desativar-envios", "operador"),  # qualquer operador pode parar tudo
     ("POST", "/api/integracao-whatsapp", "/reativar-envios", "admin"),

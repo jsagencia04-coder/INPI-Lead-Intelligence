@@ -74,6 +74,7 @@ def evo(monkeypatch, conn, real):  # noqa: F811
     importar_tudo(conn)
     validar_contato(conn, "944040470", "(47) 99999-0001")
     configurar(monkeypatch, real_mode=False)
+    conn.execute("update app_config set valor = 'Marcas Exemplo' where chave = 'primeiro_contato_empresa'")
     yield fe
     for k in list(os.environ):
         if k.startswith(("EVOLUTION_", "MENSAGERIA_", "PRIMEIRO_CONTATO_")):
@@ -112,9 +113,9 @@ def rascunho_aprovado(conn):
 def test_gerar_editar_rejeitar_aprovar_e_alterar_depois(conn, evo, monkeypatch):
     lead, c = preparar(conn)
     r = primeiro_contato.criar_rascunho(conn, lead["id"], c["id"], "user:op")  # 1. geração (sem chave de IA: modelo)
-    assert r["status"] == "rascunho" and r["gerado_por"] == "modelo-padrao" and r["canal"] == "evolution"
+    assert r["status"] == "rascunho" and r["gerado_por"] == "modelo:MODELO_01:v1" and r["canal"] == "evolution"
     assert "944040470" in r["conteudo"] and "TELEVAULT" in r["conteudo"] and "oposição" in r["conteudo"] and "SAIR" in r["conteudo"]
-    assert "Julio, consultor" in r["conteudo"] and "11/01/2027" in r["conteudo"]
+    assert "Julio, consultor" in r["conteudo"] and "Marcas Exemplo" in r["conteudo"] and "{{" not in r["conteudo"]
     with pytest.raises(Recusado, match="Só revisor"):  # 4. operador não aprova
         aprovar(conn, r, papel="operador")
     r2 = primeiro_contato.editar(conn, r["id"], r["conteudo"] + " Obrigado.", r["versao"], "user:op")  # 2. edição
@@ -135,7 +136,7 @@ def test_gerar_editar_rejeitar_aprovar_e_alterar_depois(conn, evo, monkeypatch):
     monkeypatch.delenv("PRIMEIRO_CONTATO_REMETENTE")
     get_settings.cache_clear()
     n = primeiro_contato.criar_rascunho(conn, lead["id"], c["id"], "user:op")
-    assert "[seu nome]" in n["conteudo"]
+    assert "[nome atendente]" in n["conteudo"]
     with pytest.raises(Recusado, match="lacunas"):
         aprovar(conn, n)
 

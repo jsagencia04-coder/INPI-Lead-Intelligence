@@ -38,6 +38,9 @@ def database():
 
     get_settings.cache_clear()
     migrate(TEST_URL)
+    with psycopg.connect(TEST_URL, autocommit=True) as c:  # V2.7: cópia dos 3 modelos de fábrica, restaurada a cada teste
+        c.execute("create table _modelos_fabrica as select * from wa_modelos")
+        c.execute("alter table _modelos_fabrica enable row level security")
     yield TEST_URL
     from app import db
 
@@ -57,6 +60,14 @@ def clean(database):
         c.execute("update app_config set valor = 'demo' where chave = 'ambiente'")
         c.execute("update app_config set valor = 'false' where chave = 'whatsapp_envio_bloqueado'")
         c.execute("update app_config set valor = '1' where chave = 'rpi_edicao_minima'")
+        c.execute("update app_config set valor = '' where chave in ('primeiro_contato_atendente','primeiro_contato_empresa')")
+        c.execute("update app_config set valor = '20' where chave = 'whatsapp_limite_diario'")
+        c.execute("truncate wa_modelos_historico, wa_modelos restart identity cascade")
+        c.execute("insert into wa_modelos select * from _modelos_fabrica")
+        c.execute(
+            "insert into wa_modelos_historico (modelo_id, versao, nome, texto, ativo, alterado_por)"
+            " select id, versao, nome, texto, ativo, atualizado_por from wa_modelos"
+        )
         c.execute("delete from despacho_types where fonte like 'detectado%'")
         c.execute(
             "update despacho_types set ativo_para_leads = categoria_comercial not in ('outro','arquivamento'),"

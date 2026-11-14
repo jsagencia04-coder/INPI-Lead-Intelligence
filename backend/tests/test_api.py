@@ -11,7 +11,7 @@ def client():
 def test_health():
     with client() as c:
         r = c.get("/health")
-    assert r.status_code == 200 and r.json()["schema"].endswith("_operacao_comercial_v26.sql")
+    assert r.status_code == 200 and r.json()["schema"].endswith("_modelos_mensagem_v27.sql")
 
 
 def test_fluxo_api_fila_worker_dashboard():

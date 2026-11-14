@@ -11,7 +11,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app import db, evolution, evolution_webhook, primeiro_contato, security
+from app import db, evolution, evolution_webhook, modelos, primeiro_contato, security
 from app.auth import User, current_user
 from app.config import get_settings
 from app.primeiro_contato import Recusado
@@ -87,26 +87,38 @@ def detalhe(lead_id: int, user: User = Depends(current_user)) -> dict:
             (lead_id,),
         ).fetchall()
         envios = conn.execute(
-            """select id, direcao, modo, status, motivo, numero, criado_por, criado_em, aceita_em, entregue_em, lida_em, recebida_em
-                 from wa_messages where lead_id = %s and provedor = 'evolution' order by id desc""",
+            """select m.id, m.direcao, m.modo, m.status, m.motivo, m.numero, m.numero_processo, m.criado_por, m.criado_em, m.aceita_em,
+                      m.enviada_em, m.entregue_em, m.lida_em, m.recebida_em, m.falhou_em, m.wa_message_id, m.erro_codigo, m.visto_em,
+                      case when m.direcao = 'saida' then m.corpo end as corpo, md.codigo as modelo_codigo, md.nome as modelo_nome,
+                      r.aprovado_por, r.aprovado_em, r.finalidade
+                 from wa_messages m left join wa_modelos md on md.id = m.modelo_id left join wa_rascunhos r on r.id = m.rascunho_id
+                where m.lead_id = %s and m.provedor = 'evolution' order by m.id desc""",
             (lead_id,),
         ).fetchall()
+        lista_modelos = [
+            {k: m[k] for k in ("codigo", "nome", "descricao", "tipo_oportunidade", "finalidade", "ativo", "versao")}
+            | {"compativel": modelos.compativel(m["codigo"], f["oportunidade"])}
+            for m in modelos.listar(conn)
+        ]
+        modelo_rascunho = conn.execute("select codigo, nome, versao from wa_modelos where id = %s", (r["modelo_id"],)).fetchone() if r and r.get("modelo_id") else None
         verifs = primeiro_contato.verificacoes(conn, r, papel=user.papel) if r else []
         historico = conn.execute("select * from wa_auditoria where lead_id = %s order by id desc limit 50", (lead_id,)).fetchall()
     return {"lead": f["lead"], "oportunidade": f["oportunidade"], "contatos": contatos, "rascunho": r,
             "consentimentos": consentimentos, "envios": envios, "verificacoes": verifs, "historico": historico,
-            "modo": evolution.modo(), "provedor": get_settings().mensageria_provedor}  # fmt: skip
+            "modo": evolution.modo(), "provedor": get_settings().mensageria_provedor,
+            "modelos": lista_modelos, "modelo_sugerido": modelos.sugerido(f["oportunidade"]), "modelo_rascunho": modelo_rascunho}  # fmt: skip
 
 
 # ------------------------------------------------------------------ rascunho
 class GerarIn(BaseModel):
     contact_id: int | None = None
+    modelo: Literal["MODELO_01", "MODELO_02", "MODELO_03"] | None = None  # vazio = sugerido pela oportunidade
 
 
 @router.post("/primeiro-contato/{lead_id}/rascunho", status_code=201)
 def gerar(lead_id: int, body: GerarIn, user: User = Depends(current_user)) -> dict:
     with db.transaction(user.actor) as conn:
-        return _rec(lambda: primeiro_contato.criar_rascunho(conn, lead_id, body.contact_id, user.actor))
+        return _rec(lambda: primeiro_contato.criar_rascunho(conn, lead_id, body.contact_id, user.actor, body.modelo))
 
 
 class EditarIn(BaseModel):
@@ -144,10 +156,121 @@ def aprovar(rid: int, body: AprovarIn, user: User = Depends(current_user)) -> di
                                                      user.actor, user.papel))  # fmt: skip
 
 
-@router.post("/rascunhos/{rid}/enviar", status_code=202)
-def enviar(rid: int, user: User = Depends(current_user)) -> dict:
+class EnviarIn(BaseModel):
+    chave: str | None = Field(None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")  # idempotência do clique
+
+
+@router.post("/rascunhos/{rid}/enviar")
+def enviar(rid: int, body: EnviarIn | None = None, user: User = Depends(current_user)) -> dict:
+    """Envio direto pelo backend (V2.7): valida, registra e faz UMA chamada à Evolution nesta mesma requisição.
+    O navegador não abre nada nem fala com a Evolution. Repetir o mesmo clique (mesma chave) devolve o mesmo envio.
+    Se a chamada não terminar (tempo esgotado), o resultado fica "conferir no celular" e nada é reenviado sozinho."""
     with db.transaction(user.actor) as conn:
-        return _rec(lambda: primeiro_contato.solicitar_envio(conn, rid, user.actor, user.papel))
+        m = _rec(lambda: primeiro_contato.solicitar_envio(conn, rid, user.actor, user.papel, body.chave if body else None))
+    if m["status"] == "na_fila":
+        with db.transaction("agent:whatsapp.evolution_send") as conn:
+            primeiro_contato.executar_envio(conn, m["id"])
+    return mensagem(m["id"])
+
+
+@router.get("/wa-mensagens/{mid}")
+def mensagem(mid: int) -> dict:
+    """Situação de um envio, para a tela acompanhar sem recarregar (aceita → entregue/lida pelo webhook)."""
+    with db.get_pool().connection() as conn:
+        m = conn.execute(
+            """select id, lead_id, rascunho_id, status, modo, motivo, wa_message_id, criado_em, aceita_em, enviada_em, entregue_em,
+                      lida_em, falhou_em, erro_codigo from wa_messages where id = %s and provedor = 'evolution'""",
+            (mid,),
+        ).fetchone()
+    if m is None:
+        raise HTTPException(404, "Envio não encontrado")
+    return m
+
+
+# ------------------------------------------------------------------ respostas recebidas (aviso na tela; nada é respondido)
+@router.get("/primeiro-contato-respostas")
+def respostas() -> dict:
+    with db.get_pool().connection() as conn:
+        itens = conn.execute(
+            """select m.id, m.lead_id, m.numero, m.recebida_em, m.criado_em, h.nome_original as titular
+                 from wa_messages m join leads l on l.id = m.lead_id join holders h on h.id = l.holder_id
+                where m.provedor = 'evolution' and m.direcao = 'entrada' and m.visto_em is null order by m.id desc limit 50"""
+        ).fetchall()
+    return {"novas": len(itens), "itens": itens}
+
+
+@router.post("/primeiro-contato-respostas/vistas")
+def marcar_vistas(user: User = Depends(current_user)) -> dict:
+    with db.transaction(user.actor) as conn:
+        n = conn.execute("update wa_messages set visto_em = now() where provedor = 'evolution' and direcao = 'entrada' and visto_em is null")
+        return {"marcadas": n.rowcount}
+
+
+# ------------------------------------------------------------------ V2.7 · modelos de mensagem (textos no banco)
+@router.get("/wa-modelos")
+def listar_modelos() -> dict:
+    with db.get_pool().connection() as conn:
+        return {"modelos": modelos.listar(conn), "remetente": modelos.remetente(conn), "variaveis": modelos.VARIAVEIS}
+
+
+class ModeloIn(BaseModel):
+    nome: str = Field(min_length=3, max_length=80)
+    descricao: str = Field(min_length=3, max_length=300)
+    texto: str = Field(min_length=20, max_length=1500)
+    ativo: bool
+    versao: int
+
+
+@router.put("/wa-modelos/{codigo}")
+def salvar_modelo(codigo: Literal["MODELO_01", "MODELO_02", "MODELO_03"], body: ModeloIn, user: User = Depends(current_user)) -> dict:
+    with db.transaction(user.actor) as conn:
+        try:
+            return modelos.salvar(conn, codigo, nome=body.nome, descricao=body.descricao, texto=body.texto, ativo=body.ativo,
+                                  versao=body.versao, ator=user.actor)  # fmt: skip
+        except modelos.ModeloInvalido as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/wa-modelos/{codigo}/historico")
+def historico_modelo(codigo: str) -> list[dict]:
+    with db.get_pool().connection() as conn:
+        return conn.execute(
+            """select h.* from wa_modelos_historico h join wa_modelos m on m.id = h.modelo_id where m.codigo = %s
+                order by h.versao desc""",
+            (codigo,),
+        ).fetchall()
+
+
+class PreviaIn(BaseModel):
+    texto: str | None = Field(None, max_length=1500)  # texto ainda não salvo (testar antes de salvar)
+    lead_id: int | None = None                         # lead real para a prévia (nada é gravado)
+
+
+@router.post("/wa-modelos/{codigo}/previa")
+def previa(codigo: Literal["MODELO_01", "MODELO_02", "MODELO_03"], body: PreviaIn) -> dict:
+    with db.get_pool().connection() as conn:
+        m = modelos.obter(conn, codigo)
+        if body.lead_id:
+            f = _rec(lambda: primeiro_contato.fatos(conn, body.lead_id))
+            lead, op = f["lead"], f["oportunidade"]
+        else:  # exemplo fictício, claramente marcado
+            lead = {"titular": "EMPRESA EXEMPLO LTDA (exemplo)", "geo_uf": "SC"}
+            op = {"marca_nome": "MARCA EXEMPLO", "numero_processo": "900000000", "tipo_decisao": m["tipo_oportunidade"]
+                  if m["tipo_oportunidade"] != "institucional" else None, "rpi_numero": 2914}  # fmt: skip
+        texto, alertas, usadas = modelos.renderizar(body.texto or m["texto"], modelos.valores(conn, lead, op))
+    return {"texto": texto, "alertas": alertas, "variaveis": usadas, "exemplo": not body.lead_id,
+            "compativel": modelos.compativel(codigo, op) if body.lead_id else True}  # fmt: skip
+
+
+class RemetenteIn(BaseModel):
+    nome_atendente: str = Field(max_length=80)
+    empresa: str = Field(max_length=120)
+
+
+@router.put("/wa-modelos-remetente")
+def salvar_remetente(body: RemetenteIn, user: User = Depends(current_user)) -> dict:
+    with db.transaction(user.actor) as conn:
+        return modelos.salvar_remetente(conn, body.nome_atendente, body.empresa)
 
 
 @router.post("/rascunhos/{rid}/abrir-whatsapp")

@@ -5,7 +5,7 @@ Estado em 14/11/2026.
 | Item | Situação |
 |---|---|
 | Código | Implementado e testado: backend com 191 testes aprovados (16 novos); frontend com 34 testes, lint, tipos e build sem problemas |
-| Produção | **Somente a correção emergencial** (releitura da RPI 2914, autorizada). A V2.6 **não foi publicada** |
+| Produção | Publicada em 14/11/2026 (commit 5b9664b), com autorização; auditoria da 2914 completa: 481/481 oposições e 1.801/1.801 indeferimentos |
 | Evolution API | Não foi tocada |
 
 ## 1. Diagnóstico (Fase A)
