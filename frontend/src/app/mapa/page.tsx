@@ -4,7 +4,9 @@ import Link from "next/link";
 import { Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, Flame, Gavel, MapPin, MessageCircle, Search, Sparkles, Users, X, Scale } from "lucide-react";
+import { AdicionarPipeline } from "@/components/adicionar-pipeline";
 import { BrasilMap } from "@/components/brasil-map";
+import { IndicadoresColeta, OportunidadesPriorizadas } from "@/components/oportunidades-priorizadas";
 import { BarList, SERIE } from "@/components/charts";
 import { Secao } from "@/components/kpi-card";
 import { ErrorBox, PageHeader } from "@/components/page-header";
@@ -212,6 +214,7 @@ function MapaInner() {
   const [modo, setModo] = useState<"absoluto" | "normalizado">("absoluto");
   const [busca, setBusca] = useState("");
   const [offset, setOffset] = useState(0);
+  const [pipelineDe, setPipelineDe] = useState<string | null>(null);
 
   const f = new URLSearchParams();
   if (edicao) f.set("edicao", edicao);
@@ -223,7 +226,7 @@ function MapaInner() {
   const { data: m, error, reload } = useApi<Mapa>(`/api/mapa?${f}`, 60000);
   const { data: eds } = useApi<{ edicoes: { numero: number; data_publicacao: string | null }[] }>("/api/rpi-semana");
 
-  const lf = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
+  const lf = new URLSearchParams({ limit: String(PAGE), offset: String(offset), operacional: "true", ordem: "comercial" });
   if (uf) lf.set("geo_uf", uf);
   if (edicao) lf.set("edicao", edicao);
   if (categoria) lf.set("categoria", categoria);
@@ -274,6 +277,8 @@ function MapaInner() {
         </div>
       </div>
 
+      <IndicadoresColeta />
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <section className="surface entrar p-4 md:p-5">
           <div className="mb-2 flex items-center justify-between">
@@ -310,6 +315,8 @@ function MapaInner() {
         </section>
       </div>
 
+      <OportunidadesPriorizadas edicao={edicao} />
+
       <Secao className="mt-6" titulo={uf ? `Leads · ${NOME[uf]}` : "Leads · todos os estados"} subtitulo={leads.data ? `${n(leads.data.total)} lead(s) com os filtros acima` : undefined} icon={Users}
         acao={<label className="flex h-9 items-center gap-2 rounded-lg border bg-card px-2.5 text-sm"><Search className="size-4 text-muted-foreground" /><input value={busca} onChange={(e) => { setBusca(e.target.value); setOffset(0); }} placeholder="Empresa, CNPJ, marca, processo" className="w-56 bg-transparent outline-none" /></label>}>
         <ErrorBox error={leads.error} />
@@ -338,7 +345,10 @@ function MapaInner() {
                   <span className="flex items-center gap-1 text-muted-foreground">{l.n_validados ? <CheckCircle2 className="size-3 text-emerald-600" /> : <AlertTriangle className="size-3" />}{l.n_validados} validado(s) de {l.n_contatos}</span>
                 </TableCell>
                 <TableCell className="text-xs">{NOME_ETAPA[l.pipeline_stage] ?? l.pipeline_stage}</TableCell>
-                <TableCell className="text-right"><Link href={`/leads/${l.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">Detalhes<ExternalLink className="size-3" /></Link></TableCell>
+                <TableCell className="space-y-1 text-right">
+                  <Link href={`/leads/${l.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">Detalhes<ExternalLink className="size-3" /></Link>
+                  {l.processos && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setPipelineDe(l.processos!.split(",")[0].trim())}>+ Pipeline</Button>}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -351,6 +361,7 @@ function MapaInner() {
           </div>
         )}
         <p className="mt-3 text-[11px] text-muted-foreground">Observações, histórico de contatos e fontes oficiais de cada lead ficam em “Detalhes”. Contatos seguem as regras de opt-out e autorização.</p>
+        {pipelineDe && <AdicionarPipeline numero={pipelineDe} onFechar={() => setPipelineDe(null)} onFeito={() => leads.reload()} />}
       </Secao>
     </>
   );

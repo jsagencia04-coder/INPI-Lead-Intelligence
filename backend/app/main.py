@@ -8,9 +8,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import db, security
+from app import comercial, db, security
 from app.api import (
     auth_routes,
+    comercial_routes,
     consent_routes,
     contact_routes,
     lead_routes,
@@ -36,6 +37,7 @@ async def lifespan(_: FastAPI):
     with db.transaction("system:startup") as conn:
         security.conferir_ambiente(conn, settings)
         security.bootstrap_admin(conn, settings)
+        comercial.sincronizar_config(conn, settings)
     yield
     db.close_pool()
 
@@ -60,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(pipeline_routes.router)
     app.include_router(mapa_routes.router)
     app.include_router(servicos_routes.router)
+    app.include_router(comercial_routes.router)
     app.include_router(whatsapp_routes.router)
     app.include_router(whatsapp_routes.webhook)
     app.include_router(primeiro_contato_routes.router)

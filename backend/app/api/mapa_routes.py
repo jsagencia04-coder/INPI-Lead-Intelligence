@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from app import db, semana
+from app import comercial, db, semana
 from app.api.servicos_routes import contagem_por_uf, por_estado
 from app.auth import User, current_user
 from app.jobs import queue
@@ -146,7 +146,7 @@ def mapa_uf(
                       where x.lead_id = esc.id) as marcas
                from esc join leads l on l.id = esc.id join holders h on h.id = esc.holder_id
               where {cond}
-              order by case esc.temperatura when 'quente' then 1 when 'morno' then 2 else 3 end, esc.tem_a desc,
+              order by esc.tem_a desc, case esc.temperatura when 'quente' then 1 when 'morno' then 2 else 3 end,
                        esc.score desc nulls last
               limit 10""",
             p,
@@ -188,7 +188,7 @@ def operacao(numero: int | None = None) -> dict:
     with db.get_pool().connection() as conn:
         st = semana.status_operacao(conn, numero)
         edicoes = conn.execute(
-            "select numero, data_publicacao, status from rpi_editions order by numero desc limit 20"
+            "select numero, data_publicacao, status from rpi_editions where numero >= rpi_edicao_minima() order by numero desc limit 20"
         ).fetchall()
         agenda = conn.execute(
             "select nome, ativo, proximo_em, intervalo_minutos, dias_semana, hora_inicio, hora_fim, fuso from schedules"
@@ -292,7 +292,7 @@ class OrdemIn(BaseModel):
 @router.put("/uf-prioridade")
 def ordenar(body: OrdemIn, user: User = Depends(current_user)) -> list[dict]:
     """Ordem dos demais estados (4ª posição em diante). SC, RS e PR ficam sempre nas três primeiras."""
-    fixos = ["SC", "RS", "PR"]
+    fixos = comercial.UFS_SUL
     resto = [u.upper() for u in body.ufs]
     if sorted(resto) != sorted(u for u in UFS if u not in fixos):
         raise HTTPException(422, "Informe os 24 estados restantes (sem SC, RS e PR), cada um uma vez")

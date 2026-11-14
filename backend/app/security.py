@@ -131,6 +131,7 @@ REGRAS: list[tuple[str, str, str | None, str]] = [
     ("POST", "/api/whatsapp/template", None, "operador"),
     ("POST", "/api/optout", None, "operador"),
     ("POST", "/api/leads", None, "operador"),
+    ("POST", "/api/pipeline", None, "operador"),  # V2.6: adicionar processo ao pipeline
     ("POST", "/api/reports", None, "operador"),
     ("POST", "/api/rpi", None, "operador"),
 ]

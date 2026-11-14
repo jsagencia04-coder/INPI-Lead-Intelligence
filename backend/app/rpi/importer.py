@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from psycopg import Connection
 from psycopg.types.json import Jsonb
 
+from app import comercial
 from app.rpi.normalize import guess_tipo, normalize_name
 from app.rpi.xml_parser import ProcessoRPI
 
@@ -36,6 +37,14 @@ class ImportStats:
     por_categoria: Counter = field(default_factory=Counter)
     motivos_descarte: Counter = field(default_factory=Counter)
     por_despacho: Counter = field(default_factory=Counter)
+    # V2.6 · auditoria da edição (todos os processos do XML, não só os gravados)
+    oposicoes: int = 0
+    indeferimentos: int = 0
+    representacao: Counter = field(default_factory=Counter)  # nos processos de oposição/indeferimento
+    representacao_por_tipo: dict = field(default_factory=dict)
+    duplicados: int = 0
+    _vistos: set = field(default_factory=set)
+    _contados: set = field(default_factory=set)
 
     def as_json(self) -> dict:
         return {
@@ -49,6 +58,11 @@ class ImportStats:
             "elegiveis_por_categoria": dict(self.por_categoria),
             "motivos_descarte": dict(self.motivos_descarte),
             "publicacoes_por_despacho": dict(self.por_despacho.most_common()),
+            "oposicoes": self.oposicoes,
+            "indeferimentos": self.indeferimentos,
+            "representacao": dict(self.representacao),
+            "representacao_por_tipo": {k: dict(v) for k, v in self.representacao_por_tipo.items()},
+            "duplicados_no_xml": self.duplicados,
         }
 
 
@@ -117,8 +131,12 @@ def import_processes(
 
     for p in processos:
         stats.processos_no_xml += 1
+        if p.numero in stats._vistos:
+            stats.duplicados += 1
+        stats._vistos.add(p.numero)
         for d in p.despachos:
             stats.por_despacho[d.codigo] += 1
+        _auditar(p, catalog, stats)
         batch.append(p)
         if len(batch) >= BATCH:
             _flush(conn, edition_id, edicao_numero, rpi_file_id, batch, catalog, scope, stats, titulares_vistos)
@@ -128,6 +146,28 @@ def import_processes(
 
     stats.titulares_unicos = len(titulares_vistos)
     return stats
+
+
+def _status_procurador(p: ProcessoRPI) -> str:
+    if p.procurador:
+        return "com_procurador"
+    return "erro_identificacao" if p.procurador_vazio else "sem_na_rpi"
+
+
+def _auditar(p: ProcessoRPI, catalog: dict, stats: ImportStats) -> None:
+    """Conta oposições e indeferimentos da edição inteira e a representação de cada um (relatório de completude)."""
+    for d in p.despachos:
+        cat = categoria_do_despacho(p, d, catalog)
+        if cat not in ("oposicao_apresentada", "indeferimento") or (p.numero, d.codigo) in stats._contados:
+            continue
+        stats._contados.add((p.numero, d.codigo))
+        if cat == "oposicao_apresentada":
+            stats.oposicoes += 1
+        else:
+            stats.indeferimentos += 1
+        sit = comercial.situacao_procurador(_status_procurador(p))
+        stats.representacao[sit] += 1
+        stats.representacao_por_tipo.setdefault(cat, Counter())[sit] += 1
 
 
 def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, titulares_vistos):
@@ -228,7 +268,7 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
                     "apost": p.apostila,
                     "madri": p.madri,
                     "madri_num": p.numero_inscricao_internacional,
-                    "ps": "com_procurador" if p.procurador else "sem_na_rpi",
+                    "ps": _status_procurador(p),
                     "proc": p.procurador,
                     "fonte": fonte,
                     "ed": edition_id,
@@ -290,14 +330,17 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
             ).fetchall()
         }
         opps = []
+        minimo = comercial.edicao_minima()
         for p in procs:
             for d in p.despachos:
                 categoria = categoria_do_despacho(p, d, catalog)
                 if not categoria:
                     continue
                 motivo = None
-                if status_atual.get(p.numero) == "com_procurador":
-                    motivo = "possui procurador"
+                if edicao < minimo:
+                    motivo = f"fora do corte: RPI anterior à edição mínima operacional ({minimo})"
+                elif m := comercial.motivo_procurador(status_atual.get(p.numero)):
+                    motivo = m
                 elif p.madri:
                     motivo = "Protocolo de Madri"
                 elif p.titulares and not any(t.pais == "BR" for t in p.titulares):

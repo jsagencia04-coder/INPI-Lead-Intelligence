@@ -14,6 +14,7 @@ import { ErrorBox, PageHeader } from "@/components/page-header";
 import { Select } from "@/components/select";
 import { useApi } from "@/components/use-api";
 import { BuscaAssistida } from "@/components/busca-assistida";
+import { AdicionarPipeline } from "@/components/adicionar-pipeline";
 import { WhatsappCard } from "@/components/whatsapp-card";
 import { api } from "@/lib/api";
 import {
@@ -54,6 +55,7 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
   const { data: lead, error, reload } = useApi<Lead>(`/api/leads/${id}`);
   const { data: ops } = useApi<{ ia_configurada: boolean }>("/api/metrics");
   const [msg, setMsg] = useState<string | null>(null);
+  const [pipelineDe, setPipelineDe] = useState<string | null>(null);
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
   const [novo, setNovo] = useState({ tipo: "email", valor: "", fonte_url: "" });
@@ -81,6 +83,7 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <>
+      {pipelineDe && <AdicionarPipeline numero={pipelineDe} onFechar={() => setPipelineDe(null)} />}
       <PageHeader title={t.nome_original}
         description={`${t.tipo_provavel} · ${t.uf ?? "UF não informada"} · ${t.pais ?? ""}${t.cnpj ? ` · CNPJ ${t.cnpj}` : ""}${lead.segmento ? ` · ${lead.segmento}` : ""}`}>
         <div className="flex flex-wrap items-center gap-2">
@@ -168,7 +171,7 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
             <TableHeader>
               <TableRow>
                 <TableHead>Processo</TableHead><TableHead>Marca</TableHead><TableHead>Último despacho (RPI)</TableHead>
-                <TableHead>Situação (INPI)</TableHead><TableHead>Procurador</TableHead>
+                <TableHead>Situação (INPI)</TableHead><TableHead>Procurador</TableHead><TableHead className="text-right">Gestão comercial</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -197,6 +200,7 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
                     {p.procurador_nome ?? procuradorLabel[p.procurador_status]}
                     <div className="text-xs text-muted-foreground">{p.procurador_fonte ? `fonte: ${p.procurador_fonte}` : ""}</div>
                   </TableCell>
+                  <TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setPipelineDe(p.numero_processo)}>+ Adicionar ao Pipeline</Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>

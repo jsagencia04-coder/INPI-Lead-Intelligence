@@ -6,8 +6,9 @@ export function fmtDate(v: string | null | undefined) {
 export const procuradorLabel: Record<string, string> = {
   com_procurador: "Com procurador",
   sem_confirmado: "Sem procurador (confirmado no INPI)",
-  sem_na_rpi: "Sem procurador na RPI (não confirmado)",
-  desconhecido: "Desconhecido",
+  sem_na_rpi: "Sem procurador (confirmado pelo XML oficial da RPI)",
+  desconhecido: "Representação desconhecida",
+  erro_identificacao: "Erro na identificação do procurador",
 };
 
 export const jobStatusLabel: Record<string, string> = {

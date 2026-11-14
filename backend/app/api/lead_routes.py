@@ -43,6 +43,9 @@ LEAD_FILTER = """
                                         join rpi_editions e2 on e2.id = o2.edition_id
                                        where lp2.lead_id = l.id and e2.numero = %(ed)s and o2.status = 'elegivel'))
    and (%(rev)s::boolean is null or l.precisa_revisao = %(rev)s)
+   and (%(op)s::boolean is not true or exists (
+        select 1 from lead_processes lpo join opportunities oo on oo.numero_processo = lpo.numero_processo
+         where lpo.lead_id = l.id and oo.status = 'elegivel'))
    and (%(wa)s::text is null
         or (%(wa)s = 'validado' and l.whatsapp_status in ('confirmado', 'validado'))
         or (%(wa)s = 'candidato' and l.whatsapp_status = 'candidato')
@@ -54,9 +57,18 @@ LEAD_FILTER = """
 
 
 def _filters(status, prioridade, categoria, uf, revisao, q, whatsapp=None, geo_uf=None, temperatura=None, edicao=None,
-             servico=None, classificacao=None) -> dict:  # fmt: skip
+             servico=None, classificacao=None, operacional=None) -> dict:  # fmt: skip
     return {"st": status, "pr": prioridade, "cat": categoria, "uf": uf, "rev": revisao, "q": q, "wa": whatsapp,
-            "guf": geo_uf, "temp": temperatura, "ed": edicao, "serv": servico, "cls": classificacao}  # fmt: skip
+            "guf": geo_uf, "temp": temperatura, "ed": edicao, "serv": servico, "cls": classificacao, "op": operacional}  # fmt: skip
+
+
+# V2.6 · ordem comercial: oposição antes de indeferimento, depois SC, RS, PR e demais (sem UF por último), publicação
+ORDEM_COMERCIAL = """(select min(prioridade_categoria(oo.categoria)) from lead_processes lpo
+                        join opportunities oo on oo.numero_processo = lpo.numero_processo
+                       where lpo.lead_id = l.id and oo.status = 'elegivel') nulls last,
+                     (select u.ordem from uf_prioridade u where u.uf = h.geo_uf) nulls last,
+                     ultima_publicacao desc nulls last, l.id"""
+ORDEM_PADRAO = "case l.prioridade when 'alta' then 1 when 'media' then 2 else 3 end, l.score desc nulls last, l.id desc"
 
 
 ServicoF = Literal["manifestacao_oposicao", "recurso_indeferimento", "outros"]
@@ -78,11 +90,13 @@ def list_leads(
     edicao: int | None = None,
     servico: ServicoF | None = None,
     classificacao: ClasseF | None = None,
+    operacional: bool | None = None,
+    ordem: Literal["padrao", "comercial"] = "padrao",
     limit: int = Query(50, le=200),
     offset: int = 0,
 ) -> dict:
-    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp, geo_uf, temperatura, edicao, servico, classificacao) | {
-        "l": limit, "o": offset}  # fmt: skip
+    p = _filters(status, prioridade, categoria, uf, revisao, q, whatsapp, geo_uf, temperatura, edicao, servico, classificacao,
+                 operacional) | {"l": limit, "o": offset}  # fmt: skip
     with db.get_pool().connection() as conn:
         total = conn.execute(f"select count(*) n {LEAD_FILTER}", p).fetchone()["n"]
         rows = conn.execute(
@@ -99,8 +113,7 @@ def list_leads(
                        (select count(*) from contacts c where c.holder_id = l.holder_id
                           and c.verificacao in ('dominio_ok','verificado_humano')) as n_validados
                 {LEAD_FILTER}
-                order by case l.prioridade when 'alta' then 1 when 'media' then 2 else 3 end,
-                         l.score desc nulls last, l.id desc
+                order by {ORDEM_COMERCIAL if ordem == "comercial" else ORDEM_PADRAO}
                 limit %(l)s offset %(o)s""",
             p,
         ).fetchall()

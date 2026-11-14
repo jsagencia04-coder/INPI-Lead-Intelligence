@@ -1,24 +1,24 @@
 /** Etapas do pipeline comercial (mesma ordem do backend) e fases para leitura rápida. */
 export const ETAPAS: { id: string; nome: string; fase: string }[] = [
-  { id: "lead_novo", nome: "Lead novo", fase: "Prospecção" },
-  { id: "investigando", nome: "Investigando", fase: "Prospecção" },
-  { id: "contato_identificado", nome: "Contato identificado", fase: "Prospecção" },
-  { id: "contato_validado", nome: "Contato validado", fase: "Prospecção" },
-  { id: "aguardando_autorizacao", nome: "Aguardando autorização", fase: "Autorização" },
-  { id: "elegivel_primeiro_contato", nome: "Elegível para primeiro contato", fase: "Autorização" },
-  { id: "mensagem_programada", nome: "Mensagem programada", fase: "Contato" },
-  { id: "mensagem_enviada", nome: "Mensagem enviada", fase: "Contato" },
-  { id: "mensagem_entregue", nome: "Mensagem entregue", fase: "Contato" },
-  { id: "resposta_recebida", nome: "Resposta recebida", fase: "Contato" },
-  { id: "interessado", nome: "Interessado", fase: "Negócio" },
-  { id: "reuniao", nome: "Reunião", fase: "Negócio" },
-  { id: "proposta_enviada", nome: "Proposta enviada", fase: "Negócio" },
-  { id: "negociacao", nome: "Negociação", fase: "Negócio" },
+  { id: "lead_novo", nome: "Lead novo", fase: "Identificação" },
+  { id: "investigando", nome: "Investigando", fase: "Identificação" },
+  { id: "contato_identificado", nome: "Contato identificado", fase: "Identificação" },
+  { id: "contato_validado", nome: "Contato validado", fase: "Identificação" },
+  { id: "aguardando_autorizacao", nome: "Aguardando autorização", fase: "Elegibilidade" },
+  { id: "elegivel_primeiro_contato", nome: "Elegível para primeiro contato", fase: "Elegibilidade" },
+  { id: "mensagem_programada", nome: "Mensagem programada", fase: "Primeiro contato" },
+  { id: "mensagem_enviada", nome: "Mensagem enviada", fase: "Primeiro contato" },
+  { id: "mensagem_entregue", nome: "Mensagem entregue", fase: "Primeiro contato" },
+  { id: "resposta_recebida", nome: "Resposta recebida", fase: "Primeiro contato" },
+  { id: "interessado", nome: "Interessado", fase: "Negociação" },
+  { id: "reuniao", nome: "Reunião", fase: "Negociação" },
+  { id: "proposta_enviada", nome: "Proposta enviada", fase: "Negociação" },
+  { id: "negociacao", nome: "Negociação", fase: "Negociação" },
   { id: "fechado", nome: "Fechado", fase: "Resultado" },
   { id: "perdido", nome: "Perdido", fase: "Resultado" },
   { id: "opt_out", nome: "Opt-out", fase: "Resultado" },
 ];
-export const FASES = ["Prospecção", "Autorização", "Contato", "Negócio", "Resultado"] as const;
+export const FASES = ["Identificação", "Elegibilidade", "Primeiro contato", "Negociação", "Resultado"] as const;
 
 export function porFase(contagem: { chave: string; n: number }[]) {
   const m = Object.fromEntries(contagem.map((c) => [c.chave, c.n]));

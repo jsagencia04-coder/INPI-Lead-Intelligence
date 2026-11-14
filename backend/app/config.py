@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _INLINE_COMMENT = re.compile(r"\s+#.*$")
@@ -12,7 +12,7 @@ _INLINE_COMMENT = re.compile(r"\s+#.*$")
 
 class Settings(BaseSettings):
     # env_ignore_empty: linhas como "RPI_START_EDITION=" no .env valem como "não definido"
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True, populate_by_name=True)
 
     # Banco: em produção, a connection string do Supabase (Settings > Database).
     database_url: str = "postgresql://postgres:postgres@localhost:5432/inpi"
@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = 300
     # Primeira edição a importar. Vazio = só a edição mais recente quando o banco está vazio.
     rpi_start_edition: int | None = None
+    # V2.6: edição mínima OPERACIONAL (coleta, leitura, mapa, indicadores e pipeline). Fonte única: esta variável,
+    # gravada em app_config na subida e lida pelo SQL via rpi_edicao_minima(). Edições anteriores ficam só no histórico.
+    rpi_edicao_minima: int = Field(2914, ge=1, validation_alias=AliasChoices("RPI_EDICAO_MINIMA", "MIN_RPI_EDITION"))
     rpi_max_editions_per_run: int = 10
     # Ao terminar a leitura da RPI, a SILVANE já monta os leads e distribui o trabalho por estado (SC primeiro).
     rpi_operacao_semanal_auto: bool = True

@@ -14,6 +14,17 @@ from psycopg import Connection
 from psycopg.types.json import Jsonb
 
 BACKOFF_BASE_SECONDS = 30
+# V2.6: teto de prioridade (menor = antes) para tarefas que alimentam a operação. Sem isto, milhares de pesquisas e
+# verificações enfileiradas (prioridade 60-90) deixavam a releitura da RPI parada por dias, sem erro visível.
+PRIORIDADE_TETO = {
+    "rpi.semana": 5,
+    "rpi.discover": 10,
+    "rpi.collect": 10,
+    "rpi.parse": 10,
+    "rpi.historico": 15,
+    "leads.build": 20,
+    "servicos.analisar": 20,
+}
 BACKOFF_MAX_SECONDS = 6 * 3600
 
 
@@ -29,7 +40,8 @@ def enqueue(
     parent_id: int | None = None,
 ) -> dict | None:
     """Enfileira um job. Retorna o job criado, ou o job ativo já existente com
-    a mesma `dedupe_key`."""
+    a mesma `dedupe_key` (cuja prioridade sobe, se a nova for mais urgente)."""
+    prioridade = min(prioridade, PRIORIDADE_TETO.get(tipo, prioridade))
     row = conn.execute(
         """
         insert into jobs (tipo, payload, dedupe_key, prioridade, max_tentativas,
@@ -43,10 +55,16 @@ def enqueue(
         (tipo, Jsonb(payload or {}), dedupe_key, prioridade, max_tentativas, run_after, parent_id),
     ).fetchone()
     if row is None and dedupe_key is not None:
-        row = conn.execute(
-            "select * from jobs where dedupe_key = %s and status in ('queued','running')",
-            (dedupe_key,),
-        ).fetchone()
+        row = (
+            conn.execute(
+                "update jobs set prioridade = %s where dedupe_key = %s and status = 'queued' and prioridade > %s returning *",
+                (prioridade, dedupe_key, prioridade),
+            ).fetchone()
+            or conn.execute(
+                "select * from jobs where dedupe_key = %s and status in ('queued','running')",
+                (dedupe_key,),
+            ).fetchone()
+        )
     return row
 
 

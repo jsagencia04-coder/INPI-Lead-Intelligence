@@ -7,7 +7,7 @@ describe("pipeline e navegação", () => {
     expect(ETAPAS).toHaveLength(17);
     expect(new Set(ETAPAS.map((e) => e.fase))).toEqual(new Set(FASES));
     const f = porFase([{ chave: "lead_novo", n: 3 }, { chave: "contato_validado", n: 2 }, { chave: "fechado", n: 1 }]);
-    expect(f.find((x) => x.fase === "Prospecção")!.total).toBe(5);
+    expect(f.find((x) => x.fase === "Identificação")!.total).toBe(5);
     expect(f.find((x) => x.fase === "Resultado")!.total).toBe(1);
     expect(f.reduce((s, x) => s + x.total, 0)).toBe(6);
   });

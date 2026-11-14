@@ -17,9 +17,9 @@ import { fmtDate, fmtDay, prioridadeVariant } from "@/lib/format";
 import { formatWhats } from "@/lib/whatsapp";
 import type { Paged } from "@/lib/types";
 
-type Etapa = { id: string; nome: string; automatica: boolean; leads: number; ordem: number };
-type Funil = { total: number; etapas: Etapa[] };
-type LeadP = { id: number; titular: string; uf: string | null; prioridade: "alta" | "media" | "baixa" | null; score: number | null; whatsapp: string | null; whatsapp_status: string | null; marcas: string | null; pipeline_manual: boolean; pipeline_desde: string };
+type Etapa = { id: string; nome: string; automatica: boolean; leads: number; ordem: number; fase: string | null; cor: string | null; descricao: string | null; regra: string | null };
+type Funil = { total: number; adicionados: number; etapas: Etapa[] };
+type LeadP = { id: number; titular: string; geo_uf: string | null; pipeline_incluido_em: string | null; processos_no_pipeline: string | null; uf: string | null; prioridade: "alta" | "media" | "baixa" | null; score: number | null; whatsapp: string | null; whatsapp_status: string | null; marcas: string | null; pipeline_manual: boolean; pipeline_desde: string };
 type Jornada = { etapa_pelos_fatos: string; pipeline_manual: boolean; nomes: Record<string, string>; historico: { id: number; de: string | null; para: string; origem: string; motivo: string | null; ator: string; criado_em: string }[] };
 
 const MANUAIS = { interessado: "Interessado", reuniao: "Reunião", proposta_enviada: "Proposta enviada", negociacao: "Negociação", fechado: "Fechado", perdido: "Perdido", automatico: "Voltar à etapa automática" };
@@ -50,7 +50,9 @@ function PipelineInner() {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { data: funil, error, reload: recarregarFunil } = useApi<Funil>("/api/pipeline", 30000);
+  const leadId = sp.get("lead");
+  const [soAdicionados, setSoAdicionados] = useState(sp.get("adicionados") === "1");
+  const { data: funil, error, reload: recarregarFunil } = useApi<Funil>(`/api/pipeline${soAdicionados ? "?adicionados=true" : ""}`, 30000);
   const etapa = sp.get("etapa") ?? "lead_novo";
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
@@ -58,11 +60,13 @@ function PipelineInner() {
   const [msg, setMsg] = useState<string | null>(null);
   const p = new URLSearchParams({ etapa, limit: String(PAGE), offset: String(offset) });
   if (q.trim()) p.set("q", q.trim());
+  if (leadId) p.set("lead_id", leadId);
+  if (soAdicionados) p.set("adicionados", "true");
   const { data, reload } = useApi<Paged<LeadP>>(`/api/pipeline/leads?${p}`);
   const maior = Math.max(1, ...(funil?.etapas.map((e) => e.leads) ?? [1]));
   const atual = funil?.etapas.find((e) => e.id === etapa);
 
-  const escolher = (id: string) => { setOffset(0); setAberto(null); router.replace(`${pathname}?etapa=${id}`); };
+  const escolher = (id: string) => { setOffset(0); setAberto(null); router.replace(`${pathname}?etapa=${id}${soAdicionados ? "&adicionados=1" : ""}`); };
   const mover = async (lead: LeadP, destino: string) => {
     if (!destino) return;
     const motivo = window.prompt(`Motivo para mover "${lead.titular}" para "${MANUAIS[destino as keyof typeof MANUAIS]}":`);
@@ -76,21 +80,28 @@ function PipelineInner() {
 
   return (
     <>
-      <PageHeader title="Pipeline comercial" description={funil ? `${funil.total.toLocaleString("pt-BR")} lead(s) no funil. As etapas 1 a 10 e o opt-out seguem os fatos gravados; de “Interessado” em diante, a decisão é sua.` : undefined} />
+      <PageHeader title="Pipeline comercial" description={funil ? `${funil.total.toLocaleString("pt-BR")} lead(s) no funil · ${funil.adicionados.toLocaleString("pt-BR")} adicionado(s) pelo mapa. As etapas 1 a 10 e o opt-out seguem os fatos gravados; de “Interessado” em diante, a decisão é sua (com evidência de conversa).` : undefined}>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={soAdicionados} onChange={(e) => { setSoAdicionados(e.target.checked); setOffset(0); }} />Somente adicionados ao Pipeline</label>
+      </PageHeader>
+      {leadId && <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">Mostrando o lead nº {leadId}.<button className="ml-auto text-primary underline" onClick={() => router.replace(`${pathname}?etapa=${etapa}`)}>Ver todos da etapa</button></div>}
       <ErrorBox error={error} />
       {msg && <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">{msg}</div>}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_1fr]">
         <Card>
           <CardContent className="space-y-0.5 p-2">
-            {funil?.etapas.map((e) => (
-              <button key={e.id} onClick={() => escolher(e.id)}
+            {funil?.etapas.map((e, i) => (
+              <Fragment key={e.id}>
+              {e.fase && e.fase !== funil.etapas[i - 1]?.fase && <div className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Fase {[...new Set(funil.etapas.map((x) => x.fase))].indexOf(e.fase) + 1} · {e.fase}</div>}
+              <button onClick={() => escolher(e.id)} title={[e.descricao, e.regra].filter(Boolean).join(" · ")}
                 className={`relative flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent ${etapa === e.id ? "bg-accent font-medium" : ""}`}>
                 <span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: `${(e.leads / maior) * 100}%` }} />
+                <span className="relative size-2 rounded-full" style={{ background: e.cor ?? "#94a3b8" }} />
                 <span className="relative w-5 text-right text-xs tabular-nums text-muted-foreground">{e.ordem}</span>
                 <span className="relative flex-1 truncate">{e.nome}</span>
                 {!e.automatica && <UserRound className="relative size-3 text-muted-foreground" aria-label="Etapa decidida por pessoa" />}
                 <span className="relative tabular-nums">{e.leads.toLocaleString("pt-BR")}</span>
               </button>
+              </Fragment>
             ))}
           </CardContent>
         </Card>
@@ -98,6 +109,7 @@ function PipelineInner() {
           <CardContent className="overflow-x-auto">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">{atual ? `${atual.ordem}. ${atual.nome}` : ""}</h2>
+              {atual?.descricao && <span className="text-xs text-muted-foreground">{atual.descricao}</span>}
               <Input placeholder="Titular ou CNPJ" value={q} onChange={(e) => { setQ(e.target.value); setOffset(0); }} className="ml-auto w-64" />
             </div>
             <Table>
@@ -117,6 +129,7 @@ function PipelineInner() {
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           {l.prioridade && <Badge variant={prioridadeVariant[l.prioridade]}>{l.prioridade}</Badge>}{l.uf ?? ""}
                           {l.pipeline_manual && <span title="Etapa definida por uma pessoa" className="inline-flex items-center gap-0.5"><UserRound className="size-3" /> manual</span>}
+                          {l.processos_no_pipeline && <span title={`Processo(s) adicionado(s): ${l.processos_no_pipeline}`} className="font-mono">· {l.processos_no_pipeline}</span>}
                         </div>
                       </TableCell>
                       <TableCell className="max-w-40 truncate text-sm" title={l.marcas ?? ""}>{l.marcas ?? "—"}</TableCell>

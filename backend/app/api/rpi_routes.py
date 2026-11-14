@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app import db
+from app import comercial, db
 from app.auth import User, current_user
 from app.jobs import queue
 from app.rpi.service import inspect_marcas_zip, latest_xml_file, store_original, upsert_edition
@@ -40,6 +40,8 @@ def discover(desde: int | None = None, user: User = Depends(current_user)) -> di
 
 @router.post("/editions/{numero}/collect", status_code=202)
 def collect(numero: int, user: User = Depends(current_user)) -> dict:
+    if not comercial.dentro_do_corte(numero):
+        raise HTTPException(422, f"A RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima()})")
     with db.transaction(user.actor) as conn:
         ed = conn.execute("select * from rpi_editions where numero = %s", (numero,)).fetchone()
         if ed is None:
@@ -51,6 +53,8 @@ def collect(numero: int, user: User = Depends(current_user)) -> dict:
 @router.post("/editions/{numero}/parse", status_code=202)
 def reparse(numero: int, scope: Literal["alvo", "todos"] | None = None, user: User = Depends(current_user)) -> dict:
     """Reprocessa a edição a partir do arquivo original já armazenado (idempotente)."""
+    if not comercial.dentro_do_corte(numero):
+        raise HTTPException(422, f"A RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima()})")
     with db.transaction(user.actor) as conn:
         ed = conn.execute("select * from rpi_editions where numero = %s", (numero,)).fetchone()
         f = latest_xml_file(conn, ed["id"]) if ed else None
@@ -70,6 +74,8 @@ async def upload(file: UploadFile = File(...), user: User = Depends(current_user
         _, numero = inspect_marcas_zip(data)
     except RpiFormatError as exc:
         raise HTTPException(422, f"Arquivo inválido: {exc}") from exc
+    if not comercial.dentro_do_corte(numero):
+        raise HTTPException(422, f"A RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima()})")
     with db.transaction(user.actor) as conn:
         ed = upsert_edition(conn, numero, None)
         f = store_original(

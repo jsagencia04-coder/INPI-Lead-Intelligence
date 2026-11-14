@@ -30,6 +30,10 @@ _BASE = """
            h.id as holder_id, h.nome_original as titular, h.tipo_provavel, h.cnpj, h.geo_uf, h.geo_municipio, h.geo_status,
            h.geo_fonte, coalesce(l.mesclado_em, l.id) as lead_id, l.pipeline_stage, l.status as lead_status, l.score,
            prioridade_fila_uf(h.geo_uf) as pfila,
+           prioridade_servico(os.servico) as prioridade,
+           (select u.ordem from uf_prioridade u where u.uf = h.geo_uf) as uf_ordem,
+           p.procurador_status, procurador_situacao(p.procurador_status) as procurador_situacao, p.procurador_nome,
+           exists (select 1 from pipeline_processos pp where pp.numero_processo = os.numero_processo) as no_pipeline,
            (select count(*) from contacts c where c.holder_id = h.id and c.verificacao <> 'invalido') as contatos,
            (select count(*) from contacts c where c.holder_id = h.id
               and c.verificacao in ('dominio_ok','verificado_humano')) as contatos_validados,
@@ -39,7 +43,8 @@ _BASE = """
       join process_holders ph on ph.numero_processo = os.numero_processo
       join holders h on h.id = ph.holder_id
       left join leads l on l.holder_id = h.id
-     where (%(todas)s or os.elegivel)
+     where (%(todas)s or (os.elegivel and procurador_situacao(p.procurador_status) = 'SEM_PROCURADOR_CONFIRMADO'))
+       and (%(todas)s or os.rpi_numero >= rpi_edicao_minima())
        and ph.ordem = (select min(ordem) from process_holders x where x.numero_processo = os.numero_processo)
   ),
   f as (
@@ -63,7 +68,9 @@ _BASE = """
             or numero_processo like %(q)s || '%%' or coalesce(cnpj, '') like %(q)s || '%%')
   )
 """
-_ORDEM = "order by ordem_classe, pfila, prazo_fim nulls last, servico, numero_processo"
+# V2.6: 1º prioridade do despacho (oposição antes de indeferimento, sempre), 2º estado (SC, RS, PR, demais; sem UF por
+# último), 3º data da publicação, 4º edição, 5º desempate estável.
+_ORDEM = "order by prioridade, uf_ordem nulls last, data_publicacao desc nulls last, rpi_numero desc, numero_processo, servico"
 
 
 def _params(**kw) -> dict:

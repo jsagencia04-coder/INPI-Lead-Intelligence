@@ -8,13 +8,14 @@ Todos são determinísticos (sem IA) e idempotentes: rodar de novo não duplica 
 """
 
 import io
+import time
 import zipfile
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 from psycopg.types.json import Jsonb
 
-from app import servicos
+from app import comercial, servicos
 from app.config import get_settings
 from app.jobs import queue
 from app.jobs.registry import JobContext, PermanentError, handler
@@ -44,13 +45,17 @@ def discover(conn, ctx: JobContext) -> dict:
     start = ctx.payload.get("desde") or s.rpi_start_edition
     if start is None:
         start = max(known) + 1 if known else editions[0].numero  # banco vazio: só a mais recente
+    minimo = comercial.edicao_minima(s)
+    start = max(start, minimo)  # V2.6: nada anterior à edição mínima entra na coleta
 
     # Novas a partir de `start`, mais as já detectadas que ainda não foram baixadas.
     # Edições em 'error' só voltam por ação humana (botão Reprocessar).
     novas = [
         e
         for e in editions
-        if e.marcas_xml and ((e.numero >= start and e.numero not in known) or known.get(e.numero) == "detected")
+        if e.marcas_xml
+        and e.numero >= minimo
+        and ((e.numero >= start and e.numero not in known) or known.get(e.numero) == "detected")
     ]
     novas = sorted(novas, key=lambda e: e.numero)[: s.rpi_max_editions_per_run]
     enfileiradas = []
@@ -68,8 +73,26 @@ def discover(conn, ctx: JobContext) -> dict:
     return {
         "ultima_no_indice": editions[0].numero,
         "edicoes_no_indice": len(editions),
+        "edicao_minima": minimo,
         "enfileiradas": enfileiradas,
+        "releituras": releituras_pendentes(conn),
     }
+
+
+def releituras_pendentes(conn) -> list[int]:
+    """Edições lidas com um catálogo de despachos diferente do atual (ex.: um código passou a gerar oportunidade
+    depois da leitura) são relidas com prioridade. É o que evita a falha silenciosa da RPI 2914 (V2.6)."""
+    pend = [
+        r["numero"]
+        for r in conn.execute(
+            """select numero from rpi_editions
+                where status = 'parsed' and numero >= rpi_edicao_minima()
+                  and catalogo_versao is distinct from catalogo_versao() order by numero"""
+        ).fetchall()
+    ]
+    for n in pend:
+        queue.enqueue(conn, "rpi.parse", {"numero": n}, dedupe_key=f"rpi.parse:{n}", prioridade=5)
+    return pend
 
 
 def _mark_error(conn, job: dict, erro: str) -> None:
@@ -83,6 +106,8 @@ def _mark_error(conn, job: dict, erro: str) -> None:
 def collect(conn, ctx: JobContext) -> dict:
     s = get_settings()
     numero = int(ctx.payload["numero"])
+    if not comercial.dentro_do_corte(numero, s):
+        return {"ignorado": f"RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima(s)})"}
     ed = conn.execute("select * from rpi_editions where numero = %s for update", (numero,)).fetchone()
     if ed is None:
         raise PermanentError(f"Edição {numero} não registrada; rode rpi.discover")
@@ -145,6 +170,9 @@ def collect(conn, ctx: JobContext) -> dict:
 def parse(conn, ctx: JobContext) -> dict:
     s = get_settings()
     numero = int(ctx.payload["numero"])
+    if not comercial.dentro_do_corte(numero, s):
+        return {"ignorado": f"RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima(s)})"}
+    inicio = time.monotonic()
     ed = conn.execute("select * from rpi_editions where numero = %s for update", (numero,)).fetchone()
     if ed is None:
         raise PermanentError(f"Edição {numero} não registrada")
@@ -194,7 +222,11 @@ def parse(conn, ctx: JobContext) -> dict:
     ]
     resumo["oportunidades_servico"] = servicos.sincronizar(conn, numeros=numeros)
     resumo["analise_processual"] = servicos.analisar(conn, numeros=numeros)
-    conn.execute("update rpi_editions set stats = %s where id = %s", (Jsonb(resumo), ed["id"]))
+    auditoria = auditoria_da_edicao(conn, ed, f, stats, revista, round(time.monotonic() - inicio, 1))
+    conn.execute(
+        "update rpi_editions set stats = %s, auditoria = %s, catalogo_versao = catalogo_versao() where id = %s",
+        (Jsonb(resumo), Jsonb(auditoria), ed["id"]),
+    )
     # Operação semanal: monta os leads e começa por Santa Catarina, sem esperar a agenda de hora em hora.
     # Só para a edição mais recente (edições antigas, importadas para o histórico, não disparam a operação da semana).
     mais_recente = conn.execute("select max(numero) m from rpi_editions where status = 'parsed'").fetchone()["m"] == numero
@@ -219,7 +251,53 @@ def historico(conn, ctx: JobContext) -> dict:
     ult = conn.execute("select max(numero) m from rpi_editions where status = 'parsed'").fetchone()["m"]
     if ult is None:
         return {"ignorado": "nenhuma edição processada"}
-    desde = ult - n
+    desde = max(ult - n, comercial.edicao_minima())  # V2.6: o histórico também respeita a edição mínima
+    if desde >= ult:
+        return {"ignorado": f"nenhuma edição entre a mínima ({comercial.edicao_minima()}) e a {ult}"}
     queue.enqueue(conn, "rpi.discover", {"desde": desde}, dedupe_key=f"rpi.discover:historico:{desde}", prioridade=40,
                   parent_id=ctx.job["id"])  # fmt: skip
     return {"desde": desde, "ate": ult - 1}
+
+
+def auditoria_da_edicao(conn, ed: dict, arquivo: dict, stats, revista, segundos: float) -> dict:
+    """Relatório de execução da edição (V2.6). 'completa' só quando o XML foi lido até o fim e tudo foi gravado.
+    O XML de marcas é um documento único (sem páginas): a completude é a leitura integral do arquivo, com contagem de
+    processos lidos e conferência das oposições e indeferimentos gravados contra os encontrados no arquivo."""
+    gravadas = conn.execute(
+        """select count(*) filter (where categoria = 'oposicao_apresentada') as oposicoes,
+                  count(*) filter (where categoria = 'indeferimento') as indeferimentos
+             from opportunities where edition_id = %s""",
+        (ed["id"],),
+    ).fetchone()
+    divergencias = []
+    if gravadas["oposicoes"] != stats.oposicoes:
+        divergencias.append(f"oposições: {stats.oposicoes} no XML, {gravadas['oposicoes']} gravadas")
+    if gravadas["indeferimentos"] != stats.indeferimentos:
+        divergencias.append(f"indeferimentos: {stats.indeferimentos} no XML, {gravadas['indeferimentos']} gravados")
+    rep = stats.representacao
+    return {
+        "edicao": revista.numero,
+        "data_publicacao": revista.data.isoformat() if revista.data else None,
+        "arquivo": arquivo["nome_arquivo"],
+        "sha256": arquivo["sha256"],
+        "formato": "XML oficial de marcas (documento único, sem paginação)",
+        "leitura_integral": True,
+        "processos_lidos": stats.processos_no_xml,
+        "processos_gravados": stats.processos_importados,
+        "oposicoes_encontradas": stats.oposicoes,
+        "indeferimentos_encontrados": stats.indeferimentos,
+        "oposicoes_gravadas": gravadas["oposicoes"],
+        "indeferimentos_gravados": gravadas["indeferimentos"],
+        "com_procurador": rep.get("COM_PROCURADOR", 0),
+        "sem_procurador_confirmado": rep.get("SEM_PROCURADOR_CONFIRMADO", 0),
+        "representacao_desconhecida": rep.get("PROCURADOR_DESCONHECIDO", 0),
+        "erros_identificacao_procurador": rep.get("ERRO_NA_IDENTIFICACAO", 0),
+        "representacao_por_tipo": stats.as_json()["representacao_por_tipo"],
+        "duplicidades_no_xml": stats.duplicados,
+        "oportunidades_descartadas": dict(stats.motivos_descarte),
+        "despachos_novos": stats.despachos_novos,
+        "erros_de_extracao": divergencias,
+        "tempo_segundos": segundos,
+        "completa": not divergencias,
+        "processado_em": datetime.now(UTC).isoformat(),
+    }

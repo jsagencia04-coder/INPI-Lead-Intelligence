@@ -15,7 +15,7 @@ import signal
 import time
 import traceback
 
-from app import db
+from app import comercial, db
 from app.config import get_settings
 from app.jobs import queue, scheduler
 from app.jobs.registry import JobContext, PermanentError, RetryLater, get_handler, get_on_dead, load_agents
@@ -82,6 +82,7 @@ def main() -> None:
 
     with db.transaction(f"worker:{settings.worker_id}") as conn:
         n = queue.requeue_stale(conn, settings.job_lock_timeout_minutes)
+        comercial.sincronizar_config(conn, settings)
         if n:
             log.warning("%s job(s) presos devolvidos à fila", n)
 

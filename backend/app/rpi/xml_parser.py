@@ -68,6 +68,7 @@ class ProcessoRPI:
     nice_detalhes: list[dict]
     classes_vienna: list[str]
     procurador: str | None
+    procurador_vazio: bool  # <procurador> presente mas sem nome: não dá para afirmar nada (erro de identificação)
     apostila: str | None
     madri: bool
     numero_inscricao_internacional: str | None
@@ -155,6 +156,7 @@ def _build(el: ET.Element) -> ProcessoRPI:
     for c in el.iterfind("classe-nacional"):
         nice_detalhes.append({"codigo": c.get("codigo"), "tipo": "nacional", "especificacao": _text(c.find("especificacao"))})
     madri = el.find("dados-de-madri")
+    el_proc = el.find("procurador")
 
     return ProcessoRPI(
         numero=numero,
@@ -169,7 +171,8 @@ def _build(el: ET.Element) -> ProcessoRPI:
         classes_nice=classes_nice,
         nice_detalhes=nice_detalhes,
         classes_vienna=[v.get("codigo") for v in el.iterfind("classes-vienna/classe-vienna") if v.get("codigo")],
-        procurador=_text(el.find("procurador")),  # filho direto: procurador do processo
+        procurador=_text(el_proc),  # filho direto: procurador do processo
+        procurador_vazio=el_proc is not None and _text(el_proc) is None,
         apostila=_text(el.find("apostila")),
         madri=madri is not None,
         numero_inscricao_internacional=madri.get("numero-inscricao-internacional") if madri is not None else None,
