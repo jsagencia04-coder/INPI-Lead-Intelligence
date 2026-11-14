@@ -15,7 +15,6 @@ import { Select } from "@/components/select";
 import { useApi } from "@/components/use-api";
 import { BuscaAssistida } from "@/components/busca-assistida";
 import { AdicionarPipeline } from "@/components/adicionar-pipeline";
-import { PrimeiroContatoPainel } from "@/components/primeiro-contato-painel";
 import { WhatsappCard } from "@/components/whatsapp-card";
 import { api } from "@/lib/api";
 import {
@@ -125,11 +124,6 @@ export default function LeadPage({ params }: { params: Promise<{ id: string }> }
 
         <WhatsappCard lead={lead} podeProspectar={podeProspectar} onChange={reload} />
 
-        {lead.whatsapp && (
-          <Section title="Primeiro contato pelo WhatsApp" description="Modelo sugerido pela oportunidade, revisão, aprovação e envio direto pelo sistema (Evolution), sem sair desta tela.">
-            <PrimeiroContatoPainel leadId={lead.id} compacto onMudou={reload} />
-          </Section>
-        )}
 
         {lead.servicos?.length > 0 && (
           <Section title="Serviço a oferecer" description="O titular deste lead SOFREU a oposição ou teve o pedido indeferido. Quem se opôs é só informação complementar.">

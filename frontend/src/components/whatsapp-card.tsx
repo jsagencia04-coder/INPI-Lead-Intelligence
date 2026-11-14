@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle2, ExternalLink, MessageCircle, Search, ShieldCheck, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, MessageCircle, Search, Send, ShieldCheck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,39 @@ export function WhatsappCard({ lead, podeProspectar, onChange }: { lead: any; po
   const [texto, setTexto] = useState("");
   const [aberto, setAberto] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // V2.8 · envio direto pela Evolution (um clique): texto do modelo do banco, sem wa.me nem nova aba
+  const [det, setDet] = useState<any>(null);
+  const [textoEvo, setTextoEvo] = useState("");
+  const [envio, setEnvio] = useState<any>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erroEvo, setErroEvo] = useState<string | null>(null);
+  const chave = useRef<string | null>(null);
+  const carregar = async () => {
+    try {
+      const d: any = await api(`/api/primeiro-contato/${lead.id}`);
+      setDet(d);
+      if (d.provedor !== "evolution") return;
+      const r = d.rascunho && ["rascunho", "aprovado"].includes(d.rascunho.status) ? d.rascunho : null;
+      if (r) setTextoEvo(r.conteudo);
+      else {
+        const p: any = await api(`/api/wa-modelos/${d.modelo_sugerido}/previa`, { method: "POST", body: JSON.stringify({ lead_id: lead.id }) });
+        setTextoEvo(p.texto);
+      }
+      const ultimo = d.envios.find((e: any) => e.direcao === "saida" && e.modo === "real" && !["falhou", "bloqueada", "cancelada"].includes(e.status));
+      if (ultimo) setEnvio(ultimo);
+    } catch { setDet(null); }
+  };
+  useEffect(() => { carregar(); }, [lead.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {  // acompanha até a confirmação de entrega do WhatsApp
+    if (!envio || !["aceita", "enviada", "na_fila"].includes(envio.status)) return;
+    let n = 0;
+    const t = setInterval(async () => {
+      n += 1;
+      try { const m: any = await api(`/api/wa-mensagens/${envio.id}`); if (m.status !== envio.status) setEnvio(m); } catch { /* mantém */ }
+      if (n >= 60) clearInterval(t);
+    }, 3000);
+    return () => clearInterval(t);
+  }, [envio]);
 
   useEffect(() => {
     try { setAssinatura(localStorage.getItem("inpi.assinatura") ?? ""); } catch { /* sem armazenamento */ }
@@ -67,6 +101,23 @@ export function WhatsappCard({ lead, podeProspectar, onChange }: { lead: any; po
     );
   }
 
+  const enviarAgora = async () => {
+    setErroEvo(null); setEnviando(true);
+    if (!chave.current) chave.current = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const m: any = await api(`/api/primeiro-contato/${lead.id}/enviar`, { method: "POST", body: JSON.stringify({ contact_id: atual.id, texto: textoEvo, chave: chave.current }) });
+      setEnvio(m);
+      if (["falhou", "bloqueada"].includes(m.status)) { setErroEvo(m.motivo ?? "Falha no envio"); chave.current = null; }
+      if (m.status === "reconciliar") setErroEvo("Sem resposta do WhatsApp a tempo: confira no celular se a mensagem saiu (nada é reenviado sozinho).");
+      onChange();
+    } catch (e) { setErroEvo(e instanceof Error ? e.message : String(e)); chave.current = null; } finally { setEnviando(false); }
+  };
+  const evo = det?.provedor === "evolution";
+  const enviado = envio && ["aceita", "enviada", "entregue", "lida", "simulada"].includes(envio.status);
+  const rotuloEnvio = !envio ? "" : envio.status === "simulada" ? "Simulado (nada saiu)" : ["entregue", "lida"].includes(envio.status) ? "Entregue" : envio.status === "reconciliar" ? "Conferir no celular" : "Enviada";
+  const consentido = det?.consentimentos?.some((k: any) => k.contact_id === atual.id && k.status === "ativo");
+  const lacuna = /\[[^\]]{2,40}\]/.test(textoEvo);
+
   const nivel = NIVEL[atual.verificacao] ?? NIVEL.encontrado;
   const digitos = atual.valor_normalizado.replace(/\D/g, "");
   const link = `https://wa.me/${digitos}?text=${encodeURIComponent(texto)}`;
@@ -103,6 +154,30 @@ export function WhatsappCard({ lead, podeProspectar, onChange }: { lead: any; po
         </div>
       </div>
 
+      {evo ? (
+        <div className="mt-4 grid gap-2">
+          <Textarea value={textoEvo} onChange={(e) => setTextoEvo(e.target.value)} rows={8} disabled={!!enviado || enviando}
+            className="bg-background text-sm" aria-label="Mensagem do WhatsApp" />
+          {lacuna && !enviado && <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Complete o texto entre colchetes (ex.: [marca]) antes de enviar.</p>}
+          {!consentido && !enviado && <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Sem autorização do destinatário registrada: o envio será recusado. Registre a autorização na Central de contatos.</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={enviarAgora} disabled={!podeProspectar || enviando || !!enviado || lacuna || !textoEvo.trim()}
+              className={`min-w-36 text-white ${enviado ? "bg-emerald-700 hover:bg-emerald-700" : "bg-[#25D366] hover:bg-[#1ebe5a]"}`}>
+              {enviando ? <Loader2 className="size-4 animate-spin" /> : enviado ? <CheckCircle2 className="size-4" /> : <Send className="size-4" />}
+              {enviando ? "Enviando..." : enviado ? rotuloEnvio : "Enviar"}
+            </Button>
+            {!podeProspectar && <span className="text-xs text-muted-foreground">Aprove o lead para prospecção para enviar.</span>}
+            {enviado && envio.status !== "simulada" && !["entregue", "lida"].includes(envio.status) && <span className="text-xs text-muted-foreground">Aguardando a confirmação de entrega…</span>}
+            <Link href={`/primeiro-contato?lead=${lead.id}`} className="ml-auto text-xs text-muted-foreground underline">Requisitos e histórico do envio</Link>
+          </div>
+          {erroEvo && <p className="rounded-md bg-rose-500/10 p-2 text-xs text-rose-800">{erroEvo}</p>}
+          {msg && <p className="text-xs">{msg}</p>}
+          <p className="text-[11px] text-muted-foreground">
+            O clique em Enviar aprova este texto e o envia na hora pelo número do INPI Agent, sem abrir outra página. Um primeiro contato por titular;
+            as respostas chegam no WhatsApp Business do celular e o sistema não responde sozinho. {det?.modo !== "real" && "Modo simulação: nada sai do sistema."}
+          </p>
+        </div>
+      ) : (
       <div className="mt-4 grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">Assinar como</span>
@@ -138,6 +213,7 @@ export function WhatsappCard({ lead, podeProspectar, onChange }: { lead: any; po
           publicação); confira no INPI. Se a pessoa pedir para sair, use &quot;Opt-out do titular&quot;.
         </p>
       </div>
+      )}
     </div>
   );
 }

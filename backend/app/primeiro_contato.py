@@ -346,3 +346,25 @@ def reconciliar(conn, message_id: int, resultado: str, ator: str) -> dict:
                          (f"não saiu (conferido por {ator})", message_id)).fetchone()  # fmt: skip
     auditar(conn, "envio_reconciliado", m["lead_id"], mensagem_id=message_id, resultado=resultado)
     return m
+
+
+# ------------------------------------------------------------------ V2.8 · envio em um clique (card do lead)
+def enviar_um_clique(conn, lead_id: int, contact_id: int | None, texto: str | None, ator: str, papel: str, chave: str) -> dict:
+    """O clique em "Enviar" de quem é revisor/administrador É a aprovação humana do texto exato mostrado na tela.
+    Prepara (modelo sugerido) ou reaproveita o rascunho, aplica o texto editado, aprova e cria o envio — tudo numa
+    transação: se qualquer regra bloquear (autorização, opt-out, lacunas, limite...), nada fica aprovado nem enviado."""
+    ja = conn.execute("select * from wa_messages where lead_id = %s and idempotency_key like %s", (lead_id, f"evo:%:1c:{chave}")).fetchone()
+    if ja:
+        return ja
+    if papel not in PAPEIS_APROVAR:
+        raise Recusado("Só revisor ou administrador envia mensagens")
+    c = contato_whatsapp(conn, lead_id, contact_id)
+    r = conn.execute(
+        "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')", (lead_id, c["id"])
+    ).fetchone() or criar_rascunho(conn, lead_id, c["id"], ator)
+    texto = (texto or "").strip()
+    if texto and texto != r["conteudo"]:
+        r = editar(conn, r["id"], texto, r["versao"], ator)
+    if r["status"] != "aprovado":
+        r = aprovar(conn, r["id"], r["versao"], r["conteudo_hash"], r["numero"], r["canal"], ator, papel)
+    return solicitar_envio(conn, r["id"], ator, papel, f"1c:{chave}")

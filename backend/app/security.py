@@ -119,6 +119,7 @@ REGRAS: list[tuple[str, str, str | None, str]] = [
     ("POST", "/api/reviews", "/resolve", "revisor"),
     # V2.5 primeiro contato: gerar/editar = operador; aprovar/enviar/rejeitar/reconciliar = revisor
     ("POST", "/api/primeiro-contato", "/rascunho", "operador"),
+    ("POST", "/api/primeiro-contato", "/enviar", "revisor"),  # V2.8: o clique aprova e envia
     ("PATCH", "/api/rascunhos", None, "operador"),
     ("POST", "/api/rascunhos", "/abrir-whatsapp", "operador"),
     ("POST", "/api/rascunhos", None, "revisor"),

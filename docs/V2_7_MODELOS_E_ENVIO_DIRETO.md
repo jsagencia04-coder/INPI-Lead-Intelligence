@@ -175,3 +175,14 @@ Migration `20261118000018_modelos_mensagem_v27.sql`:
 - Preencher em Configurações de mensagens o **seu nome** e a **sua empresa**. Sem eles, toda mensagem fica com lacuna e não pode ser aprovada.
 - Teste real controlado (envio para o 49 92000-4388) com a sua autorização. O ambiente já está preparado para isso desde a V2.5.
 - Item 19 (WhatsApp Business no celular continua funcionando): conferir no aparelho depois do teste real.
+
+## 8. V2.8 · Botão único "Enviar" no card do lead (14/11/2026)
+
+- No card **WhatsApp comercial · primeiro contato** (detalhes do lead), com a Evolution ativa:
+  - sai "Abrir conversa no WhatsApp", "Assinar como", "Só verificar" e "Como foi?";
+  - fica o texto do modelo sugerido (editável) e **um botão: Enviar**.
+- **Clicar em Enviar**, sendo revisor ou administrador, aprova o texto exato mostrado e envia na hora pelo backend (`POST /api/primeiro-contato/{lead}/enviar`). Não abre página nem aba.
+- O botão passa por "Enviando..." e "Enviada", e chega a "Entregue" só com a confirmação do WhatsApp.
+- **Tudo numa transação:** se uma regra bloquear (autorização, opt-out, lacuna, limite, número de teste), nada fica aprovado nem enviado. A recusa fica registrada na auditoria.
+- **O mesmo clique repetido não envia duas vezes.**
+- **Testes:** `test_enviar_em_um_clique` e `test_um_clique_sem_autorizacao_bloqueia`. São 204 testes no total.

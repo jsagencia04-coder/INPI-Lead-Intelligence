@@ -173,6 +173,29 @@ def enviar(rid: int, body: EnviarIn | None = None, user: User = Depends(current_
     return mensagem(m["id"])
 
 
+class UmCliqueIn(BaseModel):
+    contact_id: int | None = None
+    texto: str | None = Field(None, max_length=1500)
+    chave: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
+
+
+@router.post("/primeiro-contato/{lead_id}/enviar")
+def enviar_um_clique(lead_id: int, body: UmCliqueIn, user: User = Depends(current_user)) -> dict:
+    """V2.8 · Botão "Enviar" do card do lead: aprova o texto mostrado e envia na hora, pelo backend (Evolution).
+    Todas as regras continuam valendo (autorização do destinatário, opt-out, limites, número de teste...)."""
+    try:
+        with db.transaction(user.actor) as conn:
+            m = primeiro_contato.enviar_um_clique(conn, lead_id, body.contact_id, body.texto, user.actor, user.papel, body.chave)
+    except Recusado as exc:
+        with db.transaction(user.actor) as conn:  # a recusa fica registrada mesmo com a transação desfeita
+            primeiro_contato.auditar(conn, "envio_um_clique_recusado", lead_id, motivo=str(exc))
+        raise HTTPException(409, str(exc)) from exc
+    if m["status"] == "na_fila":
+        with db.transaction("agent:whatsapp.evolution_send") as conn:
+            primeiro_contato.executar_envio(conn, m["id"])
+    return mensagem(m["id"])
+
+
 @router.get("/wa-mensagens/{mid}")
 def mensagem(mid: int) -> dict:
     """Situação de um envio, para a tela acompanhar sem recarregar (aceita → entregue/lida pelo webhook)."""

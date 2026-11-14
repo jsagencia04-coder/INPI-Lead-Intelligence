@@ -166,3 +166,28 @@ def test_resposta_gera_aviso_sem_responder(conn, evo, monkeypatch):
     assert api("GET", "/api/primeiro-contato-respostas").json()["novas"] == 0
     assert len(evo.envios) == 1  # nenhuma resposta automática nem novo contato
     assert conn.execute("select pipeline_stage from leads where id = %s", (lead["id"],)).fetchone()["pipeline_stage"] == "resposta_recebida"
+
+
+# V2.8 · botão único "Enviar" no card do lead: o clique aprova o texto mostrado e envia na hora
+def test_enviar_em_um_clique(conn, evo, monkeypatch):
+    lead, c = preparar(conn)
+    configurar(monkeypatch, real_mode=True)
+    texto = api("POST", "/api/wa-modelos/MODELO_01/previa", json={"lead_id": lead["id"]}).json()["texto"]
+    r = api("POST", f"/api/primeiro-contato/{lead['id']}/enviar", json={"contact_id": c["id"], "texto": texto + " [completar]", "chave": "um-clique-0001"})
+    assert r.status_code == 409 and "lacunas" in r.text and evo.envios == []  # texto com lacuna não sai
+    assert api("GET", f"/api/primeiro-contato/{lead['id']}").json()["rascunho"] is None  # recusa desfaz tudo: nada fica aprovado
+    m = api("POST", f"/api/primeiro-contato/{lead['id']}/enviar", json={"contact_id": c["id"], "texto": texto, "chave": "um-clique-0002"}).json()
+    assert m["status"] == "aceita" and len(evo.envios) == 1 and evo.envios[0]["text"] == texto
+    assert api("POST", f"/api/primeiro-contato/{lead['id']}/enviar", json={"contact_id": c["id"], "texto": texto, "chave": "um-clique-0002"}).json()["id"] == m["id"]
+    assert len(evo.envios) == 1
+    r = conn.execute("select status, aprovado_por from wa_rascunhos where lead_id = %s", (lead["id"],)).fetchone()
+    assert r["status"] == "enviado" and r["aprovado_por"]
+    assert conn.execute("select count(*) n from wa_auditoria where acao = 'envio_um_clique_recusado'").fetchone()["n"] == 1
+
+
+def test_um_clique_sem_autorizacao_bloqueia(conn, evo, monkeypatch):
+    lead, c = preparar(conn, consentimento=False)
+    configurar(monkeypatch, real_mode=True)
+    texto = api("POST", "/api/wa-modelos/MODELO_01/previa", json={"lead_id": lead["id"]}).json()["texto"].replace("[marca]", "X")
+    r = api("POST", f"/api/primeiro-contato/{lead['id']}/enviar", json={"contact_id": c["id"], "texto": texto, "chave": "um-clique-0003"})
+    assert r.status_code == 409 and "autoriza" in r.text.lower() and evo.envios == []
