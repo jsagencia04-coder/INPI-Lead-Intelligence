@@ -120,8 +120,8 @@ def salvar(conn, codigo: str, *, nome: str, descricao: str, texto: str, ativo: b
     desconhecidas = sorted({v for v in VAR_RE.findall(texto) if v not in VARIAVEIS})
     if desconhecidas:
         raise ModeloInvalido("Variáveis desconhecidas: " + ", ".join("{{" + v + "}}" for v in desconhecidas))
-    if "SAIR" not in texto.upper():
-        raise ModeloInvalido("O modelo precisa manter a opção de descadastro (responder SAIR)")
+    # V2.10: o texto é livre (sem exigência da linha "responda SAIR"). Quem pedir para sair continua sendo
+    # bloqueado: as respostas de descadastro (SAIR, PARAR, STOP...) seguem tratadas pelo webhook.
     m = conn.execute(
         """update wa_modelos set nome = %s, descricao = %s, texto = %s, ativo = %s, versao = versao + 1,
                   atualizado_em = now(), atualizado_por = %s where id = %s returning *""",

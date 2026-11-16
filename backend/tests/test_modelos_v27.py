@@ -55,12 +55,9 @@ def test_tres_modelos_editaveis_no_banco(conn):
             "detail"
         ]
     )
-    assert (
-        "SAIR"
-        in api("PUT", "/api/wa-modelos/MODELO_01", json=ruim | {"texto": "Olá {{nome_titular}}, tudo bem com você?"}).json()[
-            "detail"
-        ]
-    )
+    # V2.10: texto livre, sem a exigência da linha de descadastro
+    livre = api("PUT", "/api/wa-modelos/MODELO_01", json=ruim | {"texto": "Olá {{nome_titular}}, tudo bem com você?"})
+    assert livre.status_code == 200 and "SAIR" not in livre.json()["texto"]
     # remetente editável na tela
     assert api("PUT", "/api/wa-modelos-remetente", json={"nome_atendente": "Julio", "empresa": "Marcas Sul"}).json() == {
         "nome_atendente": "Julio", "empresa": "Marcas Sul"}  # fmt: skip

@@ -51,7 +51,7 @@ Comercial → **Configurações de mensagens** (`/configuracoes-mensagens`).
 - **Ao salvar**, o sistema recusa:
   - uma versão desatualizada (duas pessoas editando ao mesmo tempo);
   - variáveis desconhecidas;
-  - um texto sem a opção de descadastro (SAIR).
+  - ~~um texto sem a opção de descadastro (SAIR)~~: regra removida na V2.10 (texto livre; respostas SAIR/PARAR continuam bloqueando o contato).
 - **A prévia** usa dados de exemplo, marcados como tal, ou um lead real. Não grava nada e não envia nada.
 
 ### Variáveis
@@ -186,3 +186,9 @@ Migration `20261118000018_modelos_mensagem_v27.sql`:
 - **Tudo numa transação:** se uma regra bloquear (autorização, opt-out, lacuna, limite, número de teste), nada fica aprovado nem enviado. A recusa fica registrada na auditoria.
 - **O mesmo clique repetido não envia duas vezes.**
 - **Testes:** `test_enviar_em_um_clique` e `test_um_clique_sem_autorizacao_bloqueia`. São 204 testes no total.
+
+## 9. V2.10 · Texto do modelo livre (16/11/2026)
+
+A pedido do usuário, salvar um modelo **não exige mais** a linha "responda SAIR".
+
+O tratamento de descadastro continua igual: quem responder SAIR, PARAR, STOP etc. entra na lista de bloqueio e não recebe mais mensagens.
