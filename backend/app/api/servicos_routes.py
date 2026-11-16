@@ -74,7 +74,9 @@ _ORDEM = "order by prioridade, uf_ordem nulls last, data_publicacao desc nulls l
 
 
 def _params(**kw) -> dict:
-    base = dict.fromkeys(["servico", "classe", "uf", "cidade", "edicao", "desde", "ate", "situacao", "prazo", "tipo", "contato", "q"])
+    base = dict.fromkeys(
+        ["servico", "classe", "uf", "cidade", "edicao", "desde", "ate", "situacao", "prazo", "tipo", "contato", "q"]
+    )
     return base | {"todas": False} | {k: v for k, v in kw.items() if v is not None}
 
 
@@ -108,7 +110,9 @@ def indicadores(conn, **filtros) -> dict:
 
 
 def _linhas(conn, p: dict, limite: int, offset: int = 0) -> list[dict]:
-    return conn.execute(_BASE + f"select * from f {_ORDEM} limit %(lim)s offset %(off)s", p | {"lim": limite, "off": offset}).fetchall()
+    return conn.execute(
+        _BASE + f"select * from f {_ORDEM} limit %(lim)s offset %(off)s", p | {"lim": limite, "off": offset}
+    ).fetchall()
 
 
 @router.get("/servicos/painel")
@@ -162,7 +166,12 @@ EXPORT_COLS = [
     "validacao_juridica", "fonte_prazo", "whatsapp", "telefone", "email", "site", "fontes_contatos", "etapa_crm", "lead_id",
 ]  # fmt: skip
 _MEDIDA = {"protocolada": "Sim", "nao_identificada": "Não identificada no pePI", "nao_verificada": "Ainda não verificada"}
-_PRAZO = {"em_andamento": "Em andamento", "proximo_fim": "Próximo do encerramento", "encerrado": "Encerrado", "validar": "Validar"}
+_PRAZO = {
+    "em_andamento": "Em andamento",
+    "proximo_fim": "Próximo do encerramento",
+    "encerrado": "Encerrado",
+    "validar": "Validar",
+}
 
 
 def _contatos(conn, holder_ids: list[int]) -> dict[int, dict]:
@@ -177,7 +186,9 @@ def _contatos(conn, holder_ids: list[int]) -> dict[int, dict]:
     out: dict[int, dict] = {}
     for r in rows:
         d = out.setdefault(r["holder_id"], {"fontes": []})
-        d[r["tipo"]] = r["valor_normalizado"] + ("" if r["verificacao"] in ("dominio_ok", "verificado_humano") else " (não validado)")
+        d[r["tipo"]] = r["valor_normalizado"] + (
+            "" if r["verificacao"] in ("dominio_ok", "verificado_humano") else " (não validado)"
+        )
         if r["url"]:
             d["fontes"].append(f"{r['tipo']}: {r['url']}")
     return out
@@ -205,7 +216,12 @@ def exportar(
         cont = _contatos(conn, list({r["holder_id"] for r in rows}))
         conn.execute(
             "insert into exports_log (formato, filtros, linhas, criado_por) values (%s, %s, %s, %s)",
-            (formato, Jsonb({"tipo": "servicos"} | {k: str(v) for k, v in p.items() if v not in (None, False)}), len(rows), user.actor),
+            (
+                formato,
+                Jsonb({"tipo": "servicos"} | {k: str(v) for k, v in p.items() if v not in (None, False)}),
+                len(rows),
+                user.actor,
+            ),
         )
     linhas = []
     for r in rows:
@@ -282,7 +298,11 @@ def resumo_executivo(conn) -> dict:
             f"{u['uf']}: {u['manifestacoes_abertas']} manifestação(ões) à oposição e {u['recursos_abertos']} recurso(s) com prazo aberto"
             f" ({u['manifestacoes_quentes'] + u['recursos_quentes']} quente(s){', ' + str(u['prazos_curtos']) + ' perto do vencimento' if u['prazos_curtos'] else ''})"
         )
-    texto = ("Prioridade SC → RS → PR. " + "; ".join(partes) + ".") if partes else "Nenhuma oportunidade de serviço com prazo aberto no momento."
+    texto = (
+        ("Prioridade SC → RS → PR. " + "; ".join(partes) + ".")
+        if partes
+        else "Nenhuma oportunidade de serviço com prazo aberto no momento."
+    )
     melhores = [m for m in _linhas(conn, _params(situacao="aberta"), 30) if m["classificacao"] in ("quente", "morno")][:8]
     return {"texto": texto, "destaques": destaques, "melhores": melhores, "gerado_em": datetime.now(UTC)}
 
@@ -309,9 +329,13 @@ def por_estado(conn, uf: str) -> dict:
                from f""",
         p,
     ).fetchone()
-    tops = {s: [x for x in _linhas(conn, p | {"servico": s, "situacao": "aberta"}, 8)] for s in ("manifestacao_oposicao", "recurso_indeferimento")}
+    tops = {
+        s: [x for x in _linhas(conn, p | {"servico": s, "situacao": "aberta"}, 8)]
+        for s in ("manifestacao_oposicao", "recurso_indeferimento")
+    }
     cidades = conn.execute(
-        _BASE + """select coalesce(geo_municipio, 'Município não informado') as municipio,
+        _BASE
+        + """select coalesce(geo_municipio, 'Município não informado') as municipio,
                           count(*) filter (where servico = 'manifestacao_oposicao') as oposicoes,
                           count(*) filter (where servico = 'recurso_indeferimento') as indeferimentos
                      from f group by 1 order by count(*) desc limit 12""",

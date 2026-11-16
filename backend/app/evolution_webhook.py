@@ -46,8 +46,10 @@ def _novo(conn, chave: str, tipo: str, wa_id: str | None, payload: dict) -> bool
 
 def _texto(msg: dict) -> str | None:
     m = msg.get("message") or {}
-    return m.get("conversation") or (m.get("extendedTextMessage") or {}).get("text") or (m.get("buttonsResponseMessage") or {}).get(
-        "selectedDisplayText"
+    return (
+        m.get("conversation")
+        or (m.get("extendedTextMessage") or {}).get("text")
+        or (m.get("buttonsResponseMessage") or {}).get("selectedDisplayText")
     )
 
 

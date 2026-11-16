@@ -183,7 +183,9 @@ def ensure_files(mes: str | None = None) -> tuple[str, list[Path], list[Path]]:
         pasta = cache / mes
         pasta.mkdir(parents=True, exist_ok=True)
         base = f"{s.cnpj_webdav_url.rstrip('/')}/{mes}/"
-        remotos = {n: sz for n, sz in _propfind(c, base) if re.fullmatch(r"(Empresas|Estabelecimentos)\d\.zip|Municipios\.zip", n)}
+        remotos = {
+            n: sz for n, sz in _propfind(c, base) if re.fullmatch(r"(Empresas|Estabelecimentos)\d\.zip|Municipios\.zip", n)
+        }
         if not any(n.startswith(("Empresas", "Estabelecimentos")) for n in remotos):
             raise RuntimeError(f"Mês {mes} sem arquivos Empresas/Estabelecimentos")
         for nome, tamanho in sorted(remotos.items()):

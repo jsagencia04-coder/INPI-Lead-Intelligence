@@ -141,7 +141,10 @@ def test_pedido_de_autorizacao_por_email(conn, sites, meta):  # noqa: F811
         assert conn.execute("select count(*) n from wa_messages").fetchone()["n"] == 0
         assert c.post(f"/api/contacts/{wa['id']}/consent-requests", json=corpo).status_code == 409
         if outro:
-            assert c.post(f"/api/contacts/{wa['id']}/consent-requests", json=corpo | {"via_contact_id": outro["id"]}).status_code == 409
+            assert (
+                c.post(f"/api/contacts/{wa['id']}/consent-requests", json=corpo | {"via_contact_id": outro["id"]}).status_code
+                == 409
+            )
         # a resposta positiva vira consentimento ligado ao pedido
         k = c.post(f"/api/contacts/{wa['id']}/consents", json=AUT | {"pedido_id": p["id"]}).json()
         lista = c.get(f"/api/contacts/{wa['id']}/consents").json()

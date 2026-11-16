@@ -25,8 +25,12 @@ def list_consents(contact_id: int) -> dict:
     with db.get_pool().connection() as conn:
         _contato(conn, contact_id)
         return {
-            "consentimentos": conn.execute("select * from consents where contact_id = %s order by id desc", (contact_id,)).fetchall(),
-            "pedidos": conn.execute("select * from consent_requests where contact_id = %s order by id desc", (contact_id,)).fetchall(),
+            "consentimentos": conn.execute(
+                "select * from consents where contact_id = %s order by id desc", (contact_id,)
+            ).fetchall(),
+            "pedidos": conn.execute(
+                "select * from consent_requests where contact_id = %s order by id desc", (contact_id,)
+            ).fetchall(),
             "aviso_versao": consent.AVISO_VERSAO,
             "finalidade_padrao": consent.FINALIDADE_PADRAO,
         }
@@ -35,7 +39,9 @@ def list_consents(contact_id: int) -> dict:
 @router.get("/contacts/{contact_id}/elegibilidade")
 def get_elegibilidade(contact_id: int) -> dict:
     """Mostra regra por regra por que um contato pode (ou não) receber WhatsApp."""
-    tpl = wa_cloud.template_status() if wa_cloud.configurado() else {"ok": False, "motivo": "integração com a Meta não configurada"}
+    tpl = (
+        wa_cloud.template_status() if wa_cloud.configurado() else {"ok": False, "motivo": "integração com a Meta não configurada"}
+    )
     with db.get_pool().connection() as conn:
         return consent.elegibilidade(conn, contact_id, template=tpl)
 
@@ -59,7 +65,9 @@ def create_consent(contact_id: int, body: ConsentIn, user: User = Depends(curren
         c = _contato(conn, contact_id)
         if c["verificacao"] == "invalido":
             raise HTTPException(409, "Contato inválido ou em opt-out")
-        if conn.execute("select 1 from suppression_list where valor_hash = %s", (consent._hash(c["valor_normalizado"]),)).fetchone():
+        if conn.execute(
+            "select 1 from suppression_list where valor_hash = %s", (consent._hash(c["valor_normalizado"]),)
+        ).fetchone():
             raise HTTPException(409, "Contato na lista de opt-out: não é possível registrar autorização")
         if body.obtido_em.timestamp() > datetime.now().timestamp() + 300:
             raise HTTPException(422, "A data da autorização não pode estar no futuro")
@@ -124,7 +132,9 @@ def create_request(contact_id: int, body: PedidoIn, user: User = Depends(current
         if via is None:
             raise HTTPException(409, "Escolha um e-mail válido do mesmo titular para fazer o pedido")
         for alvo in (c, via):
-            if conn.execute("select 1 from suppression_list where valor_hash = %s", (consent._hash(alvo["valor_normalizado"]),)).fetchone():
+            if conn.execute(
+                "select 1 from suppression_list where valor_hash = %s", (consent._hash(alvo["valor_normalizado"]),)
+            ).fetchone():
                 raise HTTPException(409, "Contato na lista de opt-out")
         if conn.execute(
             "select 1 from consent_requests where contact_id = %s and status = 'enviado' and criado_em > now() - interval '30 days'",
@@ -137,7 +147,9 @@ def create_request(contact_id: int, body: PedidoIn, user: User = Depends(current
             (c["holder_id"],),
         ).fetchone()
         texto = consent.PEDIDO_TEXTO.format(
-            empresa=body.empresa_identificada, processo=p["numero_processo"] if p else "—", marca=(p or {}).get("marca_nome") or "—"
+            empresa=body.empresa_identificada,
+            processo=p["numero_processo"] if p else "—",
+            marca=(p or {}).get("marca_nome") or "—",
         )
         row = conn.execute(
             """insert into consent_requests (contact_id, via_contact_id, canal_pedido, finalidade, texto, versao_aviso, criado_por)
@@ -145,7 +157,10 @@ def create_request(contact_id: int, body: PedidoIn, user: User = Depends(current
             (contact_id, via["id"], consent.FINALIDADE_PADRAO, texto, consent.AVISO_VERSAO, user.actor),
         ).fetchone()
     assunto = "Publicação do INPI sobre a sua marca"
-    return row | {"para": via["valor_normalizado"], "mailto": f"mailto:{via['valor_normalizado']}?subject={quote(assunto)}&body={quote(texto)}"}
+    return row | {
+        "para": via["valor_normalizado"],
+        "mailto": f"mailto:{via['valor_normalizado']}?subject={quote(assunto)}&body={quote(texto)}",
+    }
 
 
 class PedidoPatch(BaseModel):

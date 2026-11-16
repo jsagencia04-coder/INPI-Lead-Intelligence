@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorBox, PageHeader } from "@/components/page-header";
 import { AuditoriaRpi } from "@/components/oportunidades-priorizadas";
+import { FontesRpi } from "@/components/fontes-rpi";
 import { useApi } from "@/components/use-api";
 import { api, apiDownload, apiUpload } from "@/lib/api";
 import { categoriaLabel, editionStatusLabel, fmtBytes, fmtDate, fmtNum } from "@/lib/format";
@@ -63,6 +64,7 @@ export default function RpiPage() {
           </Button>
         </div>
       </PageHeader>
+      <FontesRpi />
       <AuditoriaRpi />
       <ErrorBox error={error} />
       {msg && <div className="mb-4 rounded-md border bg-muted/40 p-3 text-sm">{msg}</div>}

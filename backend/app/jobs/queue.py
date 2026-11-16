@@ -17,6 +17,8 @@ BACKOFF_BASE_SECONDS = 30
 # V2.6: teto de prioridade (menor = antes) para tarefas que alimentam a operação. Sem isto, milhares de pesquisas e
 # verificações enfileiradas (prioridade 60-90) deixavam a releitura da RPI parada por dias, sem erro visível.
 PRIORIDADE_TETO = {
+    "rpi.pdf": 3,
+    "rpi.pdf_importar": 6,
     "rpi.semana": 5,
     "rpi.discover": 10,
     "rpi.collect": 10,

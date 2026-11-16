@@ -101,13 +101,24 @@ def personalizar(conn, f: dict, codigo: str | None) -> dict:
 def criar_rascunho(conn, lead_id: int, contact_id: int | None, ator: str, modelo: str | None = None) -> dict:
     c = contato_whatsapp(conn, lead_id, contact_id)
     aberto = conn.execute(
-        "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')", (lead_id, c["id"])
+        "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')",
+        (lead_id, c["id"]),
     ).fetchone()
     f = fatos(conn, lead_id)
     p = personalizar(conn, f, modelo)
     m, texto = p["modelo"], p["texto"]
     autor = f"modelo:{m['codigo']}:v{m['versao']}"
-    campos = (texto, sha(texto), autor, m["id"], m["versao"], m["texto"], m["finalidade"], Jsonb(p["variaveis"]), Jsonb(p["alertas"]))
+    campos = (
+        texto,
+        sha(texto),
+        autor,
+        m["id"],
+        m["versao"],
+        m["texto"],
+        m["finalidade"],
+        Jsonb(p["variaveis"]),
+        Jsonb(p["alertas"]),
+    )
     if aberto:  # gerar de novo = nova versão; qualquer aprovação anterior deixa de valer
         r = conn.execute(
             """update wa_rascunhos set conteudo = %s, conteudo_hash = %s, versao = versao + 1, status = 'rascunho',
@@ -188,7 +199,9 @@ def aprovar(conn, rid: int, versao: int, conteudo_hash: str, numero: str, canal:
 
 
 # ------------------------------------------------------------------ verificações de envio (negar é o padrão)
-def verificacoes(conn, r: dict, *, papel: str | None = None, conexao: dict | None = None, mensagem_atual: int | None = None) -> list[dict]:
+def verificacoes(
+    conn, r: dict, *, papel: str | None = None, conexao: dict | None = None, mensagem_atual: int | None = None
+) -> list[dict]:
     s = get_settings()
     real = evolution.modo(s) == "real"
     ok = lambda regra, cond, sim, nao: {"regra": regra, "ok": bool(cond), "detalhe": sim if cond else nao}  # noqa: E731
@@ -226,7 +239,11 @@ def verificacoes(conn, r: dict, *, papel: str | None = None, conexao: dict | Non
     if papel is not None:
         v.append(ok("usuario", papel in PAPEIS_APROVAR, "Usuário com permissão comercial", "Só revisor ou administrador envia"))
     if real:
-        limite = int((conn.execute("select valor from app_config where chave = 'whatsapp_limite_diario'").fetchone() or {"valor": "20"})["valor"])
+        limite = int(
+            (conn.execute("select valor from app_config where chave = 'whatsapp_limite_diario'").fetchone() or {"valor": "20"})[
+                "valor"
+            ]
+        )
         hoje = conn.execute(
             """select count(*) n from wa_messages where direcao = 'saida' and modo = 'real' and provedor = 'evolution'
                  and status not in ('bloqueada','cancelada') and criado_em >= date_trunc('day', now() at time zone 'America/Sao_Paulo')
@@ -268,8 +285,19 @@ def solicitar_envio(conn, rid: int, ator: str, papel: str, chave: str | None = N
     if falhas:
         auditar(conn, "envio_bloqueado", r["lead_id"], rascunho_id=rid, motivos=falhas)
         raise Recusado("Envio bloqueado: " + "; ".join(falhas))
-    tentativa = chave or str(conn.execute("select count(*) n from wa_messages where rascunho_id = %s", (rid,)).fetchone()["n"] + 1)
-    dados = (r["contact_id"], r["lead_id"], r["numero_processo"], r["numero"], r["conteudo"], s.evolution_instance_name, rid, r.get("modelo_id"))
+    tentativa = chave or str(
+        conn.execute("select count(*) n from wa_messages where rascunho_id = %s", (rid,)).fetchone()["n"] + 1
+    )
+    dados = (
+        r["contact_id"],
+        r["lead_id"],
+        r["numero_processo"],
+        r["numero"],
+        r["conteudo"],
+        s.evolution_instance_name,
+        rid,
+        r.get("modelo_id"),
+    )
     if not real:
         m = conn.execute(
             """insert into wa_messages (direcao, modo, provedor, contact_id, lead_id, numero_processo, numero, tipo, corpo,
@@ -285,7 +313,9 @@ def solicitar_envio(conn, rid: int, ator: str, papel: str, chave: str | None = N
            values ('saida','real','evolution',%s,%s,%s,%s,'texto',%s,%s,%s,%s,%s,'na_fila',%s) returning *""",
         (*dados, f"evo:{rid}:{tentativa}", ator),
     ).fetchone()
-    queue.enqueue(conn, "whatsapp.evolution_send", {"message_id": m["id"]}, dedupe_key=f"whatsapp.evolution_send:{m['id']}", prioridade=5)
+    queue.enqueue(
+        conn, "whatsapp.evolution_send", {"message_id": m["id"]}, dedupe_key=f"whatsapp.evolution_send:{m['id']}", prioridade=5
+    )
     auditar(conn, "envio_solicitado", r["lead_id"], rascunho_id=rid, mensagem_id=m["id"])
     return m
 
@@ -302,7 +332,9 @@ def executar_envio(conn, message_id: int) -> dict:
     if r and msg["corpo"] != r["conteudo"]:
         falhas.append("o texto mudou depois do pedido de envio")
     if falhas:
-        conn.execute("update wa_messages set status = 'bloqueada', motivo = %s where id = %s", ("; ".join(falhas)[:500], message_id))
+        conn.execute(
+            "update wa_messages set status = 'bloqueada', motivo = %s where id = %s", ("; ".join(falhas)[:500], message_id)
+        )
         auditar(conn, "envio_bloqueado_worker", msg["lead_id"], mensagem_id=message_id, motivos=falhas)
         return {"status": "bloqueada", "motivos": falhas}
     # Marca "em andamento" numa transação já confirmada ANTES de chamar a Evolution: se o worker cair no meio,
@@ -353,14 +385,17 @@ def enviar_um_clique(conn, lead_id: int, contact_id: int | None, texto: str | No
     """O clique em "Enviar" de quem é revisor/administrador É a aprovação humana do texto exato mostrado na tela.
     Prepara (modelo sugerido) ou reaproveita o rascunho, aplica o texto editado, aprova e cria o envio — tudo numa
     transação: se qualquer regra bloquear (autorização, opt-out, lacunas, limite...), nada fica aprovado nem enviado."""
-    ja = conn.execute("select * from wa_messages where lead_id = %s and idempotency_key like %s", (lead_id, f"evo:%:1c:{chave}")).fetchone()
+    ja = conn.execute(
+        "select * from wa_messages where lead_id = %s and idempotency_key like %s", (lead_id, f"evo:%:1c:{chave}")
+    ).fetchone()
     if ja:
         return ja
     if papel not in PAPEIS_APROVAR:
         raise Recusado("Só revisor ou administrador envia mensagens")
     c = contato_whatsapp(conn, lead_id, contact_id)
     r = conn.execute(
-        "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')", (lead_id, c["id"])
+        "select * from wa_rascunhos where lead_id = %s and contact_id = %s and status in ('rascunho','aprovado')",
+        (lead_id, c["id"]),
     ).fetchone() or criar_rascunho(conn, lead_id, c["id"], ator)
     texto = (texto or "").strip()
     if texto and texto != r["conteudo"]:

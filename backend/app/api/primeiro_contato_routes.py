@@ -100,7 +100,11 @@ def detalhe(lead_id: int, user: User = Depends(current_user)) -> dict:
             | {"compativel": modelos.compativel(m["codigo"], f["oportunidade"])}
             for m in modelos.listar(conn)
         ]
-        modelo_rascunho = conn.execute("select codigo, nome, versao from wa_modelos where id = %s", (r["modelo_id"],)).fetchone() if r and r.get("modelo_id") else None
+        modelo_rascunho = (
+            conn.execute("select codigo, nome, versao from wa_modelos where id = %s", (r["modelo_id"],)).fetchone()
+            if r and r.get("modelo_id")
+            else None
+        )
         verifs = primeiro_contato.verificacoes(conn, r, papel=user.papel) if r else []
         historico = conn.execute("select * from wa_auditoria where lead_id = %s order by id desc limit 50", (lead_id,)).fetchall()
     return {"lead": f["lead"], "oportunidade": f["oportunidade"], "contatos": contatos, "rascunho": r,
@@ -225,7 +229,9 @@ def respostas() -> dict:
 @router.post("/primeiro-contato-respostas/vistas")
 def marcar_vistas(user: User = Depends(current_user)) -> dict:
     with db.transaction(user.actor) as conn:
-        n = conn.execute("update wa_messages set visto_em = now() where provedor = 'evolution' and direcao = 'entrada' and visto_em is null")
+        n = conn.execute(
+            "update wa_messages set visto_em = now() where provedor = 'evolution' and direcao = 'entrada' and visto_em is null"
+        )
         return {"marcadas": n.rowcount}
 
 
@@ -245,7 +251,9 @@ class ModeloIn(BaseModel):
 
 
 @router.put("/wa-modelos/{codigo}")
-def salvar_modelo(codigo: Literal["MODELO_01", "MODELO_02", "MODELO_03"], body: ModeloIn, user: User = Depends(current_user)) -> dict:
+def salvar_modelo(
+    codigo: Literal["MODELO_01", "MODELO_02", "MODELO_03"], body: ModeloIn, user: User = Depends(current_user)
+) -> dict:
     with db.transaction(user.actor) as conn:
         try:
             return modelos.salvar(conn, codigo, nome=body.nome, descricao=body.descricao, texto=body.texto, ativo=body.ativo,
@@ -266,7 +274,7 @@ def historico_modelo(codigo: str) -> list[dict]:
 
 class PreviaIn(BaseModel):
     texto: str | None = Field(None, max_length=1500)  # texto ainda não salvo (testar antes de salvar)
-    lead_id: int | None = None                         # lead real para a prévia (nada é gravado)
+    lead_id: int | None = None  # lead real para a prévia (nada é gravado)
 
 
 @router.post("/wa-modelos/{codigo}/previa")

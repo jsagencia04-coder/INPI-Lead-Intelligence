@@ -60,6 +60,7 @@ def clean(database):
         c.execute("update app_config set valor = 'demo' where chave = 'ambiente'")
         c.execute("update app_config set valor = 'false' where chave = 'whatsapp_envio_bloqueado'")
         c.execute("update app_config set valor = '1' where chave = 'rpi_edicao_minima'")
+        c.execute("update app_config set valor = 'false' where chave = 'rpi_pdf_primeiro'")  # V2.9: testes próprios
         c.execute("update app_config set valor = '' where chave in ('primeiro_contato_atendente','primeiro_contato_empresa')")
         c.execute("update app_config set valor = '20' where chave = 'whatsapp_limite_diario'")
         c.execute("truncate wa_modelos_historico, wa_modelos restart identity cascade")

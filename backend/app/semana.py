@@ -98,9 +98,12 @@ def status_operacao(conn, numero: int | None = None) -> dict | None:
     ufs = por_uf(conn, ed["id"]) if ed["status"] == "parsed" else {}
     etapas = [
         {"chave": "detectada", "nome": "RPI detectada", "status": "concluida", "em": ed["detectada_em"]},
-        {"chave": "extraida", "nome": "Dados extraídos",
-         "status": {"parsed": "concluida", "error": "erro", "parsing": "em_execucao"}.get(ed["status"], "pendente"),
-         "em": ed["processada_em"]},
+        {
+            "chave": "extraida",
+            "nome": "Dados extraídos",
+            "status": {"parsed": "concluida", "error": "erro", "parsing": "em_execucao"}.get(ed["status"], "pendente"),
+            "em": ed["processada_em"],
+        },
     ]
     usados: set[str] = set()
     for nome, lista in GRUPOS:
@@ -108,8 +111,14 @@ def status_operacao(conn, numero: int | None = None) -> dict | None:
         usados.update(lista)
         etapas.append({"chave": nome, "nome": nome, "status": _status(g) if ed["status"] == "parsed" else "pendente", "dados": g})
     demais = _soma([v for k, v in ufs.items() if k not in usados and k != "PENDENTE"])
-    etapas.append({"chave": "demais", "nome": "Demais estados", "status": _status(demais) if ed["status"] == "parsed" else "pendente",
-                   "dados": demais})
+    etapas.append(
+        {
+            "chave": "demais",
+            "nome": "Demais estados",
+            "status": _status(demais) if ed["status"] == "parsed" else "pendente",
+            "dados": demais,
+        }
+    )
     atual = next((e["nome"] for e in etapas[2:] if e["status"] in ("em_execucao", "pendente")), None)
     ordem = {r["uf"]: r["ordem"] for r in conn.execute("select uf, ordem from uf_prioridade")}
     ultima_busca = conn.execute(

@@ -69,7 +69,9 @@ PROVEDORES = {
 LINK_CONTATO = re.compile(r"contato|contact|fale|atendimento|sobre|about|quem-somos|empresa", re.I)
 EMAIL = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 # com DDD entre parênteses (fixo ou celular) ou celular de 9 dígitos sem parênteses ("11 98888-7777", "+55 11 9 8888 7777")
-FONE_TEXTO = re.compile(r"\(\s?\d{2}\s?\)\s?9?\s?\d{4}[-.\s]?\d{4}|(?<![\d/.-])(?:\+?55\s?)?\d{2}\s?9\s?\d{4}[-.\s]?\d{4}(?![\d/-])")
+FONE_TEXTO = re.compile(
+    r"\(\s?\d{2}\s?\)\s?9?\s?\d{4}[-.\s]?\d{4}|(?<![\d/.-])(?:\+?55\s?)?\d{2}\s?9\s?\d{4}[-.\s]?\d{4}(?![\d/-])"
+)
 LIXO_EMAIL = re.compile(r"\.(png|jpe?g|gif|webp|svg)$|sentry|wixpress|example\.|exemplo\.|seudominio|@email\.com", re.I)
 SOCIAL = {
     "instagram": re.compile(r"https?://(?:www\.)?instagram\.com/([A-Za-z0-9_.]+)/?", re.I),
@@ -101,7 +103,9 @@ WHATSAPP = re.compile(
     re.I,
 )
 # domínios de terceiros que aparecem no e-mail cadastral (contador, assessoria): o site não é do titular
-TERCEIRO = re.compile(r"contab|contador|assessor|consultor|advoc|advog|juridic|escritorio|despachante|registr|marcas?e?patentes", re.I)
+TERCEIRO = re.compile(
+    r"contab|contador|assessor|consultor|advoc|advog|juridic|escritorio|despachante|registr|marcas?e?patentes", re.I
+)
 METODO = "sem IA v2"  # muda quando a busca melhora: titulares pesquisados com método antigo são refeitos
 
 
@@ -389,8 +393,11 @@ def research_free(conn, ctx: JobContext) -> dict:
     conn.execute("update leads set pesquisado_em = coalesce(pesquisado_em, now()) where holder_id = %s", (hid,))
     if aceitos:
         queue.enqueue(
-            conn, "lead.validate_contacts", {"holder_id": hid}, dedupe_key=f"lead.validate_contacts:{hid}",
-            prioridade=conn.execute("select prioridade_fila_uf(geo_uf) p from holders where id = %s", (hid,)).fetchone()["p"] + 2
+            conn,
+            "lead.validate_contacts",
+            {"holder_id": hid},
+            dedupe_key=f"lead.validate_contacts:{hid}",
+            prioridade=conn.execute("select prioridade_fila_uf(geo_uf) p from holders where id = %s", (hid,)).fetchone()["p"] + 2,
         )
     else:
         queue.enqueue(conn, "leads.build", {}, dedupe_key="leads.build", prioridade=80)
@@ -434,7 +441,10 @@ def research_free_batch(conn, ctx: JobContext) -> dict:
     ).fetchall()
     for r in rows:
         queue.enqueue(
-            conn, "research.free", {"holder_id": r["holder_id"]}, dedupe_key=f"research.free:{r['holder_id']}",
+            conn,
+            "research.free",
+            {"holder_id": r["holder_id"]},
+            dedupe_key=f"research.free:{r['holder_id']}",
             prioridade=50 + r["pfila"],
         )
     return {"enfileirados": len(rows)}

@@ -166,7 +166,10 @@ def test_processos_reais_classificados_corretamente(conn, real):
     assert (lead["classificacao_oposicao"], lead["servico_principal"], lead["temperatura"]) == (
         "quente", "manifestacao_oposicao", "quente")  # fmt: skip
     assert lead["prazo_ate"] == date(2027, 1, 11) and lead["categoria_principal"] == "oposicao_apresentada"
-    assert conn.execute("select marca_nome from processes where numero_processo = '944040470'").fetchone()["marca_nome"] == "TELEVAULT"
+    assert (
+        conn.execute("select marca_nome from processes where numero_processo = '944040470'").fetchone()["marca_nome"]
+        == "TELEVAULT"
+    )
 
     # 2. Quem APRESENTOU a oposição nunca vira titular nem lead; "publicado para oposição" não é oposição
     for opositor in ("ASSA ABLOY%", "EPIROC%", "INP INDUSTRIA%", "GLOBO COMUNICA%"):
@@ -266,7 +269,9 @@ def test_paineis_separados_por_servico(conn, real):
         assert {x["numero_processo"] for x in lst["items"]} == {"938028383", "930647033", "939053594", "938471708"}
         quentes = c.get("/api/servicos", params={"classificacao": "quente"}).json()["items"]
         assert {x["numero_processo"] for x in quentes} == {"944040470", "938028383"}
-        csv = c.get("/api/servicos/export", params={"formato": "csv", "servico": "manifestacao_oposicao"}).content.decode("utf-8-sig")
+        csv = c.get("/api/servicos/export", params={"formato": "csv", "servico": "manifestacao_oposicao"}).content.decode(
+            "utf-8-sig"
+        )
         assert "ASSA ABLOY" in csv and "Manifestação à oposição" in csv and "11/01/2027" in csv
         rel = c.get("/api/servicos/resumo-executivo").json()
         assert rel["destaques"][0]["uf"] == "SC" and "manifestação" in rel["texto"].lower()

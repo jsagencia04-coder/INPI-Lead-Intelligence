@@ -122,7 +122,10 @@ def import_processes(
     rpi_file_id: int | None,
     processos: Iterable[ProcessoRPI],
     scope: str = "alvo",
+    origem: str = "xml",
 ) -> ImportStats:
+    """origem='pdf' (V2.9): leitura antecipada do PDF. Fica marcada em cada publicação e no procurador_fonte; o XML,
+    quando chega, substitui o texto da publicação (o original do PDF fica em rpi_pdf_registros)."""
     stats = ImportStats()
     catalog = _load_catalog(conn)
     catalog["__tracked__"] = _load_tracked(conn)  # type: ignore[assignment]
@@ -139,10 +142,10 @@ def import_processes(
         _auditar(p, catalog, stats)
         batch.append(p)
         if len(batch) >= BATCH:
-            _flush(conn, edition_id, edicao_numero, rpi_file_id, batch, catalog, scope, stats, titulares_vistos)
+            _flush(conn, edition_id, edicao_numero, rpi_file_id, batch, catalog, scope, stats, titulares_vistos, origem)
             batch = []
     if batch:
-        _flush(conn, edition_id, edicao_numero, rpi_file_id, batch, catalog, scope, stats, titulares_vistos)
+        _flush(conn, edition_id, edicao_numero, rpi_file_id, batch, catalog, scope, stats, titulares_vistos, origem)
 
     stats.titulares_unicos = len(titulares_vistos)
     return stats
@@ -170,13 +173,13 @@ def _auditar(p: ProcessoRPI, catalog: dict, stats: ImportStats) -> None:
         stats.representacao_por_tipo.setdefault(cat, Counter())[sit] += 1
 
 
-def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, titulares_vistos):
+def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, titulares_vistos, origem="xml"):
     stats.despachos_novos += _register_new_despachos(conn, batch, catalog, edicao)
     tracked = catalog.get("__tracked__")
     procs = batch if scope == "todos" else [p for p in batch if _is_target(p, catalog, tracked)]
     if not procs:
         return
-    fonte = f"rpi:{edicao}"
+    fonte = f"rpi:{edicao}" if origem == "xml" else f"rpi:{edicao}:{origem}"
     numeros = [p.numero for p in procs]
 
     # Última edição em que cada processo já apareceu: uma edição ANTIGA (importada depois, para o histórico)
@@ -298,9 +301,14 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
         n0 = before.fetchone()["n"]
         cur.executemany(
             """insert into publications (numero_processo, edition_id, rpi_file_id, despacho_codigo, despacho_nome,
-                                         texto_complementar, protocolos, procurador_na_publicacao, raw_hash)
-               values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-               on conflict (numero_processo, edition_id, despacho_codigo) do nothing""",
+                                         texto_complementar, protocolos, procurador_na_publicacao, raw_hash, fonte)
+               values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               on conflict (numero_processo, edition_id, despacho_codigo) do update set
+                 rpi_file_id = excluded.rpi_file_id, despacho_nome = excluded.despacho_nome,
+                 texto_complementar = excluded.texto_complementar, protocolos = excluded.protocolos,
+                 procurador_na_publicacao = excluded.procurador_na_publicacao, raw_hash = excluded.raw_hash,
+                 fonte = excluded.fonte
+               where publications.fonte = 'pdf' and excluded.fonte = 'xml'  -- só o XML oficial substitui o PDF""",
             [
                 (
                     p.numero,
@@ -312,6 +320,7 @@ def _flush(conn, edition_id, edicao, rpi_file_id, batch, catalog, scope, stats, 
                     Jsonb(d.protocolos),
                     p.procurador,
                     p.raw_hash,
+                    origem,
                 )
                 for p in procs
                 for d in p.despachos

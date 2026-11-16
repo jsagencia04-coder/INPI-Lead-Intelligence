@@ -38,7 +38,9 @@ def test_jornada_completa_pelos_fatos(conn, sites, meta, monkeypatch):  # noqa: 
     drain()
     assert etapa(conn, lid) == "contato_validado"  # WhatsApp publicado pela empresa
 
-    wa = conn.execute("select * from contacts where holder_id = %s and wa_nivel = 'company_evidence'", (gama["holder_id"],)).fetchone()
+    wa = conn.execute(
+        "select * from contacts where holder_id = %s and wa_nivel = 'company_evidence'", (gama["holder_id"],)
+    ).fetchone()
     with TestClient(app) as c:
         c.patch(f"/api/leads/{lid}", json={"status": "aprovado"})
         assert etapa(conn, lid) == "aguardando_autorizacao"  # número público não é consentimento
@@ -51,7 +53,9 @@ def test_jornada_completa_pelos_fatos(conn, sites, meta, monkeypatch):  # noqa: 
         assert etapa(conn, lid) == "mensagem_programada"
 
         # a Meta aceita, entrega e o titular responde (status só pelo webhook)
-        conn.execute("update wa_messages set status = 'aceita', aceita_em = now(), wa_message_id = 'wamid.p1' where id = %s", (m["id"],))
+        conn.execute(
+            "update wa_messages set status = 'aceita', aceita_em = now(), wa_message_id = 'wamid.p1' where id = %s", (m["id"],)
+        )
         assert etapa(conn, lid) == "mensagem_enviada"
         corpo, cab = assinar(evento_status("wamid.p1", "delivered"))
         c.post("/webhooks/whatsapp", content=corpo, headers=cab)
@@ -62,7 +66,10 @@ def test_jornada_completa_pelos_fatos(conn, sites, meta, monkeypatch):  # noqa: 
 
         # daqui em diante é decisão de uma pessoa
         assert c.post(f"/api/leads/{lid}/pipeline", json={"etapa": "interessado", "motivo": "pediu ligação"}).status_code == 200
-        assert c.post(f"/api/leads/{lid}/pipeline", json={"etapa": "proposta_enviada", "motivo": "proposta 12/11"}).status_code == 200
+        assert (
+            c.post(f"/api/leads/{lid}/pipeline", json={"etapa": "proposta_enviada", "motivo": "proposta 12/11"}).status_code
+            == 200
+        )
         # um fato novo (outra resposta) não desfaz a decisão manual
         corpo, cab = assinar(evento_msg("wamid.r2", "Recebi a proposta"))
         c.post("/webhooks/whatsapp", content=corpo, headers=cab)
@@ -103,8 +110,11 @@ def test_funil_listagem_e_volta_ao_automatico(conn, sites):  # noqa: F811
     with TestClient(app) as c:
         f = c.get("/api/pipeline").json()
         assert len(f["etapas"]) == 17 and [e["ordem"] for e in f["etapas"]] == list(range(1, 18))
-        assert f["total"] == sum(e["leads"] for e in f["etapas"]) == conn.execute(
-            "select count(*) n from leads where mesclado_em is null").fetchone()["n"]
+        assert (
+            f["total"]
+            == sum(e["leads"] for e in f["etapas"])
+            == conn.execute("select count(*) n from leads where mesclado_em is null").fetchone()["n"]
+        )
         por = {e["id"]: e["leads"] for e in f["etapas"]}
         assert por["contato_validado"] == 1 and por["elegivel_primeiro_contato"] == 0 and por["mensagem_enviada"] == 0
         lst = c.get("/api/pipeline/leads", params={"etapa": "contato_validado"}).json()

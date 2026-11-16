@@ -43,7 +43,8 @@ def elegibilidade(conn, contact_id: int, *, template: dict | None = None) -> dic
         (contact_id,),
     ).fetchone()
     bloqueado = (
-        conn.execute("select 1 from suppression_list where valor_hash = %s", (_hash(c["valor_normalizado"]),)).fetchone() is not None
+        conn.execute("select 1 from suppression_list where valor_hash = %s", (_hash(c["valor_normalizado"]),)).fetchone()
+        is not None
     )
     validado = c["tipo"] == "whatsapp" and c["wa_nivel"] in ("company_evidence", "human_confirmed")
     regras = [
@@ -57,12 +58,16 @@ def elegibilidade(conn, contact_id: int, *, template: dict | None = None) -> dic
         {
             "regra": "numero_fornecido",
             "ok": bool(k and k["numero_fornecido"]),
-            "detalhe": "O destinatário forneceu o número" if k and k["numero_fornecido"] else "O número não foi fornecido pelo destinatário",
+            "detalhe": "O destinatário forneceu o número"
+            if k and k["numero_fornecido"]
+            else "O número não foi fornecido pelo destinatário",
         },
         {
             "regra": "autorizacao",
             "ok": k is not None,
-            "detalhe": f"Autorização registrada em {k['obtido_em']:%d/%m/%Y} ({k['metodo']})" if k else "Sem autorização registrada",
+            "detalhe": f"Autorização registrada em {k['obtido_em']:%d/%m/%Y} ({k['metodo']})"
+            if k
+            else "Sem autorização registrada",
         },
         {"regra": "sem_optout", "ok": not bloqueado, "detalhe": "Fora da lista de supressão" if not bloqueado else "Em opt-out"},
         {

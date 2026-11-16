@@ -1,0 +1,112 @@
+# INPI Agent no Painel ICP (Integrator Host). Stack em /opt/inpi-agent, código em /opt/inpi-agent/src.
+# Segredos só no /opt/inpi-agent/.env do servidor (nunca no Git). Banco sem porta pública; web e api só em 127.0.0.1,
+# publicados pelo proxy (OpenResty) do ICP com HTTPS. O worker só sobe no corte: `docker compose --profile corte up -d worker`
+# (garante um único worker gravando — o da origem precisa estar parado).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}"
+      POSTGRES_DB: inpi
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 20 }
+    restart: unless-stopped
+
+  api:
+    build: { context: ./src, dockerfile: backend/Dockerfile }
+    environment: &backend_env
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/inpi"
+      STORAGE_LOCAL_DIR: /srv/backend/data/storage
+      CNPJ_CACHE_DIR: /srv/backend/data/cnpj
+      APP_ENV: "${APP_ENV:-homologacao}"
+      AUTH_MODE: "${AUTH_MODE:-local}"
+      APP_SECRET_KEY: "${APP_SECRET_KEY:?defina APP_SECRET_KEY}"
+      BOOTSTRAP_ADMIN_EMAIL: "${BOOTSTRAP_ADMIN_EMAIL:-}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
+      CORS_ORIGINS: '["https://${DOMINIO:-localhost}"]'
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      WHATSAPP_PHONE_NUMBER_ID: "${WHATSAPP_PHONE_NUMBER_ID:-}"
+      WHATSAPP_BUSINESS_ACCOUNT_ID: "${WHATSAPP_BUSINESS_ACCOUNT_ID:-}"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN:-}"
+      WHATSAPP_VERIFY_TOKEN: "${WHATSAPP_VERIFY_TOKEN:-}"
+      WHATSAPP_APP_SECRET: "${WHATSAPP_APP_SECRET:-}"
+      WHATSAPP_TEMPLATE_NAME: "${WHATSAPP_TEMPLATE_NAME:-}"
+      WHATSAPP_ENVIO_ATIVO: "${WHATSAPP_ENVIO_ATIVO:-false}"
+      WHATSAPP_NUMEROS_TESTE: "${WHATSAPP_NUMEROS_TESTE:-}"
+      # V2.5 primeiro contato pela Evolution API (instância exclusiva). Segredos só aqui, nunca no código.
+      MENSAGERIA_PROVEDOR: "${MENSAGERIA_PROVEDOR:-manual}"
+      EVOLUTION_BASE_URL: "${EVOLUTION_BASE_URL:-}"
+      EVOLUTION_INSTANCE_NAME: "${EVOLUTION_INSTANCE_NAME:-inpi-agent}"
+      EVOLUTION_API_KEY: "${EVOLUTION_API_KEY:-}"
+      EVOLUTION_WEBHOOK_TOKEN: "${EVOLUTION_WEBHOOK_TOKEN:-}"
+      EVOLUTION_NUMERO_AUTORIZADO: "${EVOLUTION_NUMERO_AUTORIZADO:-}"
+      EVOLUTION_SEND_ENABLED: "${EVOLUTION_SEND_ENABLED:-false}"
+      EVOLUTION_SIMULATION: "${EVOLUTION_SIMULATION:-true}"
+      EVOLUTION_NUMEROS_TESTE: "${EVOLUTION_NUMEROS_TESTE:-}"
+      PRIMEIRO_CONTATO_REMETENTE: "${PRIMEIRO_CONTATO_REMETENTE:-}"
+      RPI_EDICAO_MINIMA: "${RPI_EDICAO_MINIMA:-2914}"
+    volumes: [dados:/srv/backend/data]
+    depends_on: { db: { condition: service_healthy } }
+    ports: ["127.0.0.1:8100:8000"]
+    restart: unless-stopped
+
+  worker:
+    build: { context: ./src, dockerfile: backend/Dockerfile }
+    command: ["python", "-m", "app.worker"]
+    profiles: ["corte"]
+    environment: *backend_env
+    volumes: [dados:/srv/backend/data]
+    depends_on: [api]
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./src
+      dockerfile: frontend/Dockerfile
+      args: { BACKEND_URL: "http://api:8000" }
+    depends_on: [api]
+    ports: ["127.0.0.1:3100:3000"]
+    restart: unless-stopped
+
+  # Evolution API exclusiva do INPI Agent (migrada da origem com banco e sessão). Sem porta publicada: só a api a acessa,
+  # em http://evolution:8080, pela rede interna. Configuração não secreta em evolution.env; segredos no .env.
+  evolution-db:
+    image: postgres:18
+    environment:
+      POSTGRES_PASSWORD: "${EVO_DB_PASSWORD:?defina EVO_DB_PASSWORD}"
+      POSTGRES_DB: evo
+    volumes: [evolution_pg:/var/lib/postgresql]
+    healthcheck: { test: ["CMD", "pg_isready", "-U", "postgres"], interval: 5s, retries: 20 }
+    restart: unless-stopped
+
+  evolution:
+    image: evoapicloud/evolution-api:v2.3.7
+    profiles: ["evolution"]
+    env_file: [./evolution.env]
+    environment:
+      DATABASE_CONNECTION_URI: "postgresql://postgres:${EVO_DB_PASSWORD}@evolution-db:5432/evo?sslmode=disable"
+      AUTHENTICATION_API_KEY: "${EVO_GLOBAL_API_KEY:?defina EVO_GLOBAL_API_KEY}"
+      SERVER_URL: "http://evolution:8080"
+    volumes: [evolution_instances:/evolution/instances]
+    depends_on: { evolution-db: { condition: service_healthy } }
+    restart: unless-stopped
+
+  # Uso único, no corte: restaura o banco e a sessão da Evolution vindos da origem e aponta o webhook da instância
+  # para a api pela rede interna. `docker compose --profile evo-restaurar run --rm evo-restaurar`
+  evo-restaurar:
+    image: postgres:18
+    profiles: ["evo-restaurar"]
+    env_file: [./.env]
+    command: ["sh", "/scripts/restaurar_evo.sh"]
+    volumes:
+      - /opt/inpi-agent/migracao:/migracao:ro
+      - ./restaurar_evo.sh:/scripts/restaurar_evo.sh:ro
+      - evolution_instances:/evolution/instances
+    depends_on: { evolution-db: { condition: service_healthy } }
+    restart: "no"
+
+volumes:
+  pgdata:
+  dados:
+  evolution_pg:
+  evolution_instances:

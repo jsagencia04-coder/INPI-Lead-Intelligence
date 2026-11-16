@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 from psycopg.types.json import Jsonb
 
 from app import comercial, servicos
+from app.agents import rpi_pdf
 from app.config import get_settings
 from app.jobs import queue
 from app.jobs.registry import JobContext, PermanentError, handler
@@ -48,33 +49,48 @@ def discover(conn, ctx: JobContext) -> dict:
     minimo = comercial.edicao_minima(s)
     start = max(start, minimo)  # V2.6: nada anterior à edição mínima entra na coleta
 
-    # Novas a partir de `start`, mais as já detectadas que ainda não foram baixadas.
-    # Edições em 'error' só voltam por ação humana (botão Reprocessar).
+    # Novas a partir de `start`, mais as já detectadas cujo XML ainda não foi baixado (V2.9: inclusive as que já
+    # foram lidas pelo PDF). Edições em 'error' só voltam por ação humana (botão Reprocessar).
+    sem_xml = {
+        r["numero"]
+        for r in conn.execute(
+            """select e.numero from rpi_editions e
+                where not exists (select 1 from rpi_files f where f.edition_id = e.id and f.formato = 'zip')"""
+        ).fetchall()
+    }
     novas = [
         e
         for e in editions
-        if e.marcas_xml
+        if (e.marcas_xml or e.marcas_pdfs)
         and e.numero >= minimo
-        and ((e.numero >= start and e.numero not in known) or known.get(e.numero) == "detected")
+        and (
+            (e.numero >= start and e.numero not in known) or (known.get(e.numero) not in (None, "error") and e.numero in sem_xml)
+        )
     ]
     novas = sorted(novas, key=lambda e: e.numero)[: s.rpi_max_editions_per_run]
-    enfileiradas = []
+    enfileiradas, pdfs = [], []
     for e in novas:
-        upsert_edition(conn, e.numero, e.data, fonte_url=s.rpi_index_url, links=e.as_json())
-        queue.enqueue(
-            conn,
-            "rpi.collect",
-            {"numero": e.numero},
-            dedupe_key=f"rpi.collect:{e.numero}",
-            prioridade=50,
-            parent_id=ctx.job["id"],
-        )
-        enfileiradas.append(e.numero)
+        ed = upsert_edition(conn, e.numero, e.data, fonte_url=s.rpi_index_url, links=e.as_json())
+        rpi_pdf.registrar_fontes(conn, ed["id"], e.as_json())  # V2.9: horário de detecção de cada arquivo
+        if e.marcas_xml:
+            queue.enqueue(
+                conn,
+                "rpi.collect",
+                {"numero": e.numero},
+                dedupe_key=f"rpi.collect:{e.numero}",
+                prioridade=50,
+                parent_id=ctx.job["id"],
+            )
+            enfileiradas.append(e.numero)
+        # V2.9: o PDF do Volume I começa a ser lido sem esperar o XML (só a edição mais nova do índice)
+        if e.numero == editions[0].numero and rpi_pdf.enfileirar_pdf(conn, ed, ctx.job["id"]):
+            pdfs.append(e.numero)
     return {
         "ultima_no_indice": editions[0].numero,
         "edicoes_no_indice": len(editions),
         "edicao_minima": minimo,
         "enfileiradas": enfileiradas,
+        "pdf_antecipado": pdfs,
         "releituras": releituras_pendentes(conn),
     }
 
@@ -95,10 +111,24 @@ def releituras_pendentes(conn) -> list[int]:
     return pend
 
 
+def _status(conn, edition_id: int, status: str) -> None:
+    """Etapas intermediárias do XML não rebaixam uma edição que já está em uso (lida pelo PDF)."""
+    conn.execute("update rpi_editions set status = %s where id = %s and status <> 'parsed'", (status, edition_id))
+
+
 def _mark_error(conn, job: dict, erro: str) -> None:
+    msg = f"{job['tipo']} #{job['id']}: {erro.splitlines()[0][:500]}"
+    numero = int(job["payload"]["numero"])
+    # V2.9: se o PDF já foi lido, a edição continua utilizável; o erro fica no arquivo (XML), não na edição
     conn.execute(
-        "update rpi_editions set status = 'error', observacoes = %s where numero = %s",
-        (f"{job['tipo']} #{job['id']}: {erro.splitlines()[0][:500]}", int(job["payload"]["numero"])),
+        """update rpi_editions set status = case when status = 'parsed' then status else 'error' end,
+                  observacoes = %s where numero = %s""",
+        (msg, numero),
+    )
+    conn.execute(
+        """update rpi_fontes set status = 'erro', ultimo_erro = %s, atualizado_em = now()
+            where fonte = 'xml' and edition_id = (select id from rpi_editions where numero = %s)""",
+        (msg, numero),
     )
 
 
@@ -116,7 +146,10 @@ def collect(conn, ctx: JobContext) -> dict:
         raise PermanentError(f"Edição {numero} sem link do XML de marcas no índice")
 
     storage = get_storage()
-    conn.execute("update rpi_editions set status = 'downloading' where id = %s", (ed["id"],))
+    inicio = time.monotonic()
+    _status(conn, ed["id"], "downloading")
+    rpi_pdf.registrar_fontes(conn, ed["id"], ed["links"] or {})
+    rpi_pdf.atualizar_fonte(conn, ed["id"], "xml", status="baixando", etapa="baixando o XML")
     with http.client() as c:
         r = c.get(xml_url)
         r.raise_for_status()  # 404 logo após a publicação = retry com backoff
@@ -148,7 +181,13 @@ def collect(conn, ctx: JobContext) -> dict:
                 )
                 pdfs.append(f["id"])
 
-    conn.execute("update rpi_editions set status = 'downloaded', coletada_em = now() where id = %s", (ed["id"],))
+    conn.execute(
+        """update rpi_editions set status = case when status = 'parsed' then status else 'downloaded' end,
+                  coletada_em = coalesce(coletada_em, now()) where id = %s""",
+        (ed["id"],),
+    )
+    rpi_pdf.atualizar_fonte(conn, ed["id"], "xml", status="baixado", baixado_em=datetime.now(UTC), etapa=None,
+                            rpi_file_id=xml_file["id"], tempo_download_s=round(time.monotonic() - inicio, 1))  # fmt: skip
     queue.enqueue(
         conn,
         "rpi.parse",
@@ -188,7 +227,9 @@ def parse(conn, ctx: JobContext) -> dict:
     if sha256_of(data) != f["sha256"]:
         raise PermanentError("Integridade violada: o hash do arquivo armazenado não confere")
 
-    conn.execute("update rpi_editions set status = 'parsing' where id = %s", (ed["id"],))
+    _status(conn, ed["id"], "parsing")
+    rpi_pdf.atualizar_fonte(conn, ed["id"], "xml", status="processando", processamento_inicio=datetime.now(UTC),
+                            etapa="lendo o XML")  # fmt: skip
     zf = zipfile.ZipFile(io.BytesIO(data))
     xml_name = next(n for n in zf.namelist() if n.lower().endswith(".xml"))
     scope = ctx.payload.get("scope") or s.rpi_import_scope
@@ -223,6 +264,11 @@ def parse(conn, ctx: JobContext) -> dict:
     resumo["oportunidades_servico"] = servicos.sincronizar(conn, numeros=numeros)
     resumo["analise_processual"] = servicos.analisar(conn, numeros=numeros)
     auditoria = auditoria_da_edicao(conn, ed, f, stats, revista, round(time.monotonic() - inicio, 1))
+    # V2.9: conciliação com o que já tinha sido lido do PDF (presença, titulares, procurador)
+    resumo["conciliacao_pdf"] = rpi_pdf.conciliar(conn, ed["id"])
+    rpi_pdf.atualizar_fonte(conn, ed["id"], "xml", status="processado", processado_em=datetime.now(UTC), etapa=None,
+                            registros=stats.processos_no_xml, registros_alvo=stats.oposicoes + stats.indeferimentos,
+                            tempo_processamento_s=round(time.monotonic() - inicio, 1))  # fmt: skip
     conn.execute(
         "update rpi_editions set stats = %s, auditoria = %s, catalogo_versao = catalogo_versao() where id = %s",
         (Jsonb(resumo), Jsonb(auditoria), ed["id"]),

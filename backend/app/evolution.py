@@ -136,13 +136,21 @@ def enviar_texto(numero_e164: str, texto: str) -> ResultadoEnvio:
         # o pedido não chegou à Evolution: não saiu. Nada é repetido sozinho.
         return ResultadoEnvio("falhou", f"não enviado: sem conexão com a Evolution ({type(exc).__name__})", codigo="conexao")
     except httpx.HTTPError as exc:
-        return ResultadoEnvio("reconciliar", f"resultado desconhecido ({type(exc).__name__}): confira no WhatsApp antes de qualquer ação")
+        return ResultadoEnvio(
+            "reconciliar", f"resultado desconhecido ({type(exc).__name__}): confira no WhatsApp antes de qualquer ação"
+        )
     if resp.status_code in (401, 403):
         return ResultadoEnvio("falhou", "não enviado: a Evolution recusou a chave", codigo=f"http_{resp.status_code}")
     if resp.status_code in (400, 404, 422):
-        return ResultadoEnvio("falhou", f"não enviado: pedido recusado pela Evolution (HTTP {resp.status_code})", codigo=f"http_{resp.status_code}")
+        return ResultadoEnvio(
+            "falhou", f"não enviado: pedido recusado pela Evolution (HTTP {resp.status_code})", codigo=f"http_{resp.status_code}"
+        )
     if resp.status_code >= 500:
-        return ResultadoEnvio("reconciliar", f"resultado desconhecido (HTTP {resp.status_code}): confira no WhatsApp", codigo=f"http_{resp.status_code}")
+        return ResultadoEnvio(
+            "reconciliar",
+            f"resultado desconhecido (HTTP {resp.status_code}): confira no WhatsApp",
+            codigo=f"http_{resp.status_code}",
+        )
     try:
         mid = resp.json()["key"]["id"]
     except (ValueError, KeyError, TypeError):

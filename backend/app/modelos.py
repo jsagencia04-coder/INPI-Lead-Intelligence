@@ -32,7 +32,11 @@ UF_NOME = {
     "RN": "Rio Grande do Norte", "RS": "Rio Grande do Sul", "RO": "Rondônia", "RR": "Roraima", "SC": "Santa Catarina",
     "SP": "São Paulo", "SE": "Sergipe", "TO": "Tocantins",
 }  # fmt: skip
-TIPO_DESPACHO = {"oposicao": "notificação de oposição", "indeferimento": "indeferimento", "deferimento_parcial": "deferimento parcial"}
+TIPO_DESPACHO = {
+    "oposicao": "notificação de oposição",
+    "indeferimento": "indeferimento",
+    "deferimento_parcial": "deferimento parcial",
+}
 
 
 class ModeloInvalido(Exception):

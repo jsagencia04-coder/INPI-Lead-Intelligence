@@ -212,7 +212,8 @@ def cnpj_recontatos(conn, ctx: JobContext) -> dict:
             if not norm:
                 continue
             if conn.execute(
-                "select 1 from contacts where holder_id = %s and tipo = %s and valor_normalizado = %s", (r["holder_id"], tipo, norm)
+                "select 1 from contacts where holder_id = %s and tipo = %s and valor_normalizado = %s",
+                (r["holder_id"], tipo, norm),
             ).fetchone():
                 continue
             if ev is None:
@@ -227,7 +228,14 @@ def cnpj_recontatos(conn, ctx: JobContext) -> dict:
             conn.execute(
                 """insert into contacts (holder_id, tipo, valor, valor_normalizado, evidence_id, fonte_tipo, confianca, observacao)
                    values (%s, %s, %s, %s, %s, 'receita', 0.5, %s) on conflict (holder_id, tipo, valor_normalizado) do nothing""",
-                (r["holder_id"], tipo, valor, norm, ev, "Dado cadastral da Receita: pode ser do contador ou estar desatualizado."),
+                (
+                    r["holder_id"],
+                    tipo,
+                    valor,
+                    norm,
+                    ev,
+                    "Dado cadastral da Receita: pode ser do contador ou estar desatualizado.",
+                ),
             )
             novos += 1
             celulares += 1 if tipo == "telefone" and norm[5:6] == "9" and len(norm) == 14 else 0

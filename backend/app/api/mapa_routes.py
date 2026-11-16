@@ -71,7 +71,9 @@ Cat = Literal["oposicao_apresentada", "oposicao", "indeferimento", "deferimento_
 Temp = Literal["quente", "morno", "em_pesquisa", "historico"]
 Servico = Literal["manifestacao_oposicao", "recurso_indeferimento"]
 Prazo = Literal["em_andamento", "proximo_fim", "encerrado", "validar", "validacao_juridica"]
-SERV_ZERO = dict.fromkeys(["oposicoes_sofridas", "manifestacoes_cabiveis", "indeferimentos", "recursos_cabiveis", "servicos_quentes"], 0)
+SERV_ZERO = dict.fromkeys(
+    ["oposicoes_sofridas", "manifestacoes_cabiveis", "indeferimentos", "recursos_cabiveis", "servicos_quentes"], 0
+)
 
 
 @router.get("/mapa")
@@ -133,14 +135,16 @@ def mapa_uf(
     cond = "coalesce(esc.geo_uf, 'PENDENTE') = %(uf)s and (%(temp)s::text is null or esc.temperatura = %(temp)s)"
     with db.get_pool().connection() as conn:
         tot = conn.execute(
-            _ESCOPO + f"""select {_CONTAGEM},
+            _ESCOPO
+            + f"""select {_CONTAGEM},
                     count(distinct holder_id) as titulares,
                     count(distinct holder_id) filter (where tipo_provavel = 'PJ') as empresas
                from esc where {cond}""",
             p,
         ).fetchone()
         prioritarios = conn.execute(
-            _ESCOPO + f"""select esc.id, h.nome_original as titular, h.geo_municipio as municipio, h.geo_status, esc.score,
+            _ESCOPO
+            + f"""select esc.id, h.nome_original as titular, h.geo_municipio as municipio, h.geo_status, esc.score,
                     esc.temperatura, l.temperatura_motivos, l.whatsapp, l.whatsapp_status, l.categoria_principal, esc.tem_a,
                     (select string_agg(distinct pr.marca_nome, ', ') from lead_processes x join processes pr using (numero_processo)
                       where x.lead_id = esc.id) as marcas
@@ -152,7 +156,8 @@ def mapa_uf(
             p,
         ).fetchall()
         municipios = conn.execute(
-            _ESCOPO + f"""select coalesce(h.geo_municipio, 'Município não informado') as chave, count(*) n
+            _ESCOPO
+            + f"""select coalesce(h.geo_municipio, 'Município não informado') as chave, count(*) n
                from esc join holders h on h.id = esc.holder_id where {cond} group by 1 order by 2 desc limit 8""",
             p,
         ).fetchall()
@@ -213,7 +218,9 @@ def relatorio(numero: int | None = None, uf: str = Query("SC", pattern=r"^[A-Z]{
 
 
 @router.get("/rpi-semana/comparativo")
-def comparativo(uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"), limite: int = Query(8, ge=2, le=26)) -> list[dict]:
+def comparativo(
+    uf: str | None = Query(None, pattern=r"^([A-Z]{2}|PENDENTE)$"), limite: int = Query(8, ge=2, le=26)
+) -> list[dict]:
     """Semana a semana: leads novos (primeira aparição) × recorrentes, oposições, quentes e contatos validados."""
     with db.get_pool().connection() as conn:
         return conn.execute(

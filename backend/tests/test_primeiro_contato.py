@@ -100,7 +100,9 @@ def preparar(conn, *, consentimento=True, aprovar_lead=True):
 
 
 def aprovar(conn, r, papel="revisor"):
-    return primeiro_contato.aprovar(conn, r["id"], r["versao"], r["conteudo_hash"], r["numero"], r["canal"], "user:revisor", papel)
+    return primeiro_contato.aprovar(
+        conn, r["id"], r["versao"], r["conteudo_hash"], r["numero"], r["canal"], "user:revisor", papel
+    )
 
 
 def rascunho_aprovado(conn):
@@ -114,7 +116,9 @@ def test_gerar_editar_rejeitar_aprovar_e_alterar_depois(conn, evo, monkeypatch):
     lead, c = preparar(conn)
     r = primeiro_contato.criar_rascunho(conn, lead["id"], c["id"], "user:op")  # 1. geração (sem chave de IA: modelo)
     assert r["status"] == "rascunho" and r["gerado_por"] == "modelo:MODELO_01:v1" and r["canal"] == "evolution"
-    assert "944040470" in r["conteudo"] and "TELEVAULT" in r["conteudo"] and "oposição" in r["conteudo"] and "SAIR" in r["conteudo"]
+    assert (
+        "944040470" in r["conteudo"] and "TELEVAULT" in r["conteudo"] and "oposição" in r["conteudo"] and "SAIR" in r["conteudo"]
+    )
     assert "Julio, consultor" in r["conteudo"] and "Marcas Exemplo" in r["conteudo"] and "{{" not in r["conteudo"]
     with pytest.raises(Recusado, match="Só revisor"):  # 4. operador não aprova
         aprovar(conn, r, papel="operador")
@@ -246,7 +250,10 @@ def test_historico_isolamento_e_reinicio_do_worker(conn, evo, monkeypatch):
     # 17. o worker caiu depois de "pegar" a mensagem: na volta, não envia de novo (fica para conferência)
     conn.execute("update wa_messages set status = 'reconciliar', motivo = 'envio em andamento' where id = %s", (m["id"],))
     drain()
-    assert evo.envios == [] and conn.execute("select status from wa_messages where id = %s", (m["id"],)).fetchone()["status"] == "reconciliar"
+    assert (
+        evo.envios == []
+        and conn.execute("select status from wa_messages where id = %s", (m["id"],)).fetchone()["status"] == "reconciliar"
+    )
     assert all("/inpi-agent" in x or x.endswith("fetchInstances") for x in evo.chamadas)  # só a instância do INPI Agent
     acoes = [a["acao"] for a in conn.execute("select acao from wa_auditoria where lead_id = %s order by id", (lead["id"],))]
     assert acoes[:3] == ["rascunho_gerado", "rascunho_aprovado", "envio_bloqueado"] and "envio_solicitado" in acoes  # 15
@@ -265,28 +272,59 @@ def test_webhook_registra_sem_responder(conn, evo, monkeypatch):
         assert cli.post("/webhooks/evolution/inpi-agent?token=errado", json={}).status_code == 403
         assert cli.post(f"/webhooks/evolution/kisabor?token={TOKEN}", json={"event": "messages.upsert"}).status_code == 403
         assert cli.post(url, json={"event": "x", "instance": "kisabor"}).status_code == 403
-        up = {"event": "messages.update", "instance": "inpi-agent", "data": {"keyId": "BAE1", "status": "DELIVERY_ACK", "fromMe": True}}
+        up = {
+            "event": "messages.update",
+            "instance": "inpi-agent",
+            "data": {"keyId": "BAE1", "status": "DELIVERY_ACK", "fromMe": True},
+        }
         assert cli.post(url, json=up).json()["aplicados"] == 1
         assert cli.post(url, json=up).json()["repetidos"] == 1  # deduplicação
         cli.post(url, json={"event": "MESSAGES_UPDATE", "instance": "inpi-agent", "data": {"keyId": "BAE1", "status": "READ"}})
-        resp = {"event": "messages.upsert", "instance": "inpi-agent",
-                "data": {"key": {"remoteJid": f"{num}@s.whatsapp.net", "fromMe": False, "id": "IN1"}, "message": {"conversation": "Tenho interesse"}}}
+        resp = {
+            "event": "messages.upsert",
+            "instance": "inpi-agent",
+            "data": {
+                "key": {"remoteJid": f"{num}@s.whatsapp.net", "fromMe": False, "id": "IN1"},
+                "message": {"conversation": "Tenho interesse"},
+            },
+        }
         assert cli.post(url, json=resp).json()["aplicados"] == 1
-        outro = {"event": "messages.upsert", "instance": "inpi-agent",
-                 "data": {"key": {"remoteJid": "5511988887777@s.whatsapp.net", "fromMe": False, "id": "IN2"}, "message": {"conversation": "oi"}}}
+        outro = {
+            "event": "messages.upsert",
+            "instance": "inpi-agent",
+            "data": {
+                "key": {"remoteJid": "5511988887777@s.whatsapp.net", "fromMe": False, "id": "IN2"},
+                "message": {"conversation": "oi"},
+            },
+        }
         assert cli.post(url, json=outro).json()["ignorados"] == 1  # conversa de outro número: nem é gravada
         cli.post(url, json={"event": "connection.update", "instance": "inpi-agent", "data": {"state": "close"}})
     msg = conn.execute("select * from wa_messages where id = %s", (m["id"],)).fetchone()
     assert msg["status"] == "lida" and msg["entregue_em"] and msg["lida_em"]
     ent = conn.execute("select * from wa_messages where direcao = 'entrada'").fetchall()
     assert len(ent) == 1 and ent[0]["corpo"] is None and ent[0]["numero"] == c["valor_normalizado"]  # texto não é guardado
-    assert conn.execute("select pipeline_stage from leads where id = %s", (lead["id"],)).fetchone()["pipeline_stage"] == "resposta_recebida"
+    assert (
+        conn.execute("select pipeline_stage from leads where id = %s", (lead["id"],)).fetchone()["pipeline_stage"]
+        == "resposta_recebida"
+    )
     assert conn.execute("select count(*) n from wa_webhook_events where wa_message_id = 'IN2'").fetchone()["n"] == 0
-    assert conn.execute("select status_conexao from wa_contas where instancia = 'inpi-agent'").fetchone()["status_conexao"] == "desconectado"
+    assert (
+        conn.execute("select status_conexao from wa_contas where instancia = 'inpi-agent'").fetchone()["status_conexao"]
+        == "desconectado"
+    )
     assert len(evo.envios) == 1  # 20. nenhuma resposta automática
     # pedido de saída pela resposta = opt-out imediato, ainda sem responder nada
-    r2 = evolution_webhook.processar(conn, "messages.upsert", {"instance": "inpi-agent", "data": {
-        "key": {"remoteJid": f"{num}@s.whatsapp.net", "fromMe": False, "id": "IN3"}, "message": {"conversation": "SAIR"}}})
+    r2 = evolution_webhook.processar(
+        conn,
+        "messages.upsert",
+        {
+            "instance": "inpi-agent",
+            "data": {
+                "key": {"remoteJid": f"{num}@s.whatsapp.net", "fromMe": False, "id": "IN3"},
+                "message": {"conversation": "SAIR"},
+            },
+        },
+    )
     assert r2["optouts"] == 1 and len(evo.envios) == 1
     assert conn.execute("select count(*) n from suppression_list where origem = 'whatsapp:evolution'").fetchone()["n"] == 1
 
@@ -304,7 +342,10 @@ def test_desativacao_emergencial_e_meta_desligada(conn, evo, monkeypatch):
         assert cli.post("/api/integracao-whatsapp/desativar-envios").json()["cancelados"] == 1
         assert cli.post(f"/api/rascunhos/{r['id']}/enviar").status_code == 409
     drain()
-    assert evo.envios == [] and conn.execute("select status from wa_messages where id = %s", (m["id"],)).fetchone()["status"] == "cancelada"
+    assert (
+        evo.envios == []
+        and conn.execute("select status from wa_messages where id = %s", (m["id"],)).fetchone()["status"] == "cancelada"
+    )
     # a Cloud API da Meta não envia nem processa webhook enquanto o provedor for a Evolution
     assert "Meta desativada" in wa_cloud.bloqueio(conn, {"numero": DEST, "contact_id": None})
     with TestClient(app) as cli:

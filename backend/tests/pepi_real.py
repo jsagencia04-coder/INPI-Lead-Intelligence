@@ -6,61 +6,173 @@ no pePI em 12/11/2026 para os processos reais usados nos testes. Nomes de pessoa
 
 # numero: (marca, situação, titular, procurador, depósito, [(protocolo, data, serviço, descrição, cliente)])
 PEPI = {
-    "944040470": ("TELEVAULT", "Aguardando manifestação sobre oposição", "CEI - CONTROLES ELETRÔNICOS INTELIGENTES LTDA", None,
-                  "10/06/2026", [
-                      ("850260447873", "31/08/2026", "332", "Oposição - valor por classe", "ASSA ABLOY BRASIL INDÚSTRIA E COMÉRCIO LTDA"),
-                      ("850260280901", "10/06/2026", "389", "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
-                       "CEI - CONTROLES ELETRÔNICOS INTELIGENTES LTDA"),
-                  ]),
-    "944032028": ("EPROK", "Aguardando manifestação sobre oposição", "Tprojetto Group LTDA", None, "09/06/2026", [
-        ("850260505259", "28/09/2026", "332", "Oposição - valor por classe", "EPIROC AKTIEBOLAG"),
-        ("850260279661", "09/06/2026", "389", "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
-         "Tprojetto Group LTDA"),
-    ]),
-    "943447259": ("HEALTH ESSENCE", "Aguardando exame de mérito", "JOAO TESTE PEREIRA", None, "19/04/2026", [
-        ("850260494593", "23/09/2026", "339", "Manifestação", "JOAO TESTE PEREIRA"),
-        ("850260358046", "17/07/2026", "332", "Oposição - valor por classe", "INP INDUSTRIA DE ALIMENTOS LTDA"),
-        ("850260183253", "19/04/2026", "389", "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
-         "JOAO TESTE PEREIRA"),
-    ]),
-    "942100506": ("Instituto Ela por Elas", "Aguardando exame de mérito", "INSTITUTO ELA POR ELAS", None, "05/12/2025", [
-        ("850260077262", "20/02/2026", "332", "Oposição - valor por classe", "GLOBO COMUNICAÇÃO E PARTICIPAÇÕES S.A."),
-        ("850260058486", "09/02/2026", "332", "Oposição - valor por classe", "IGREJA APOSTOLICA PLENITUDE DO TRONO DE DEUS"),
-        ("850250690571", "05/12/2025", "389", "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
-         "INSTITUTO ELA POR ELAS"),
-    ]),
-    "938028383": ("ESCOLA DAS CIDADES", "Aguardando apresentação e exame de recurso contra o indeferimento", "TDBUSINESS LTDA", None,
-                  "14/02/2025", [
-                      ("850250076465", "14/02/2025", "389", "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
-                       "TDBUSINESS LTDA"),
-                  ]),
-    "930647033": ("Enraizador", "Aguardando apresentação e exame de recurso contra o indeferimento", "MARIA TESTE GUERRA", None,
-                  "01/06/2023", [
-                      ("850230254940", "01/06/2023", "394",
-                       "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe", "MARIA TESTE GUERRA"),
-                  ]),
-    "930932480": ("EKOA LIFE SCIENCES", "Aguardando apresentação e exame de recurso contra o indeferimento", "IMP BIOINSUMOS LTDA", None,
-                  "27/06/2023", [
-                      ("850260549596", "21/10/2026", "3000", "Recurso contra indeferimento de pedido de registro de marca - valor por classe",
-                       "IMP BIOINSUMOS LTDA"),
-                      ("850230600631", "07/12/2023", "339", "Manifestação", "IMP BIOINSUMOS LTDA"),
-                      ("850230448655", "18/09/2023", "332", "Oposição - valor por classe", "EKKOA COMERCIO PRODUTOS DE LIMPEZA EIRELI"),
-                      ("850230297790", "27/06/2023", "394",
-                       "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe", "IMP BIOINSUMOS LTDA"),
-                  ]),
-    "939053594": ("XUCRO CORAÇÃO", "Aguardando processamento da concessão do registro de marca", "MV EVENTOS E SERVICOS LTDA", None,
-                  "08/05/2025", [
-                      ("301260304524", "05/11/2026", "3023", "Concessão de registro de marca e expedição de certificado - Protocolo interno automático",
-                       "DIRMA/GABINETE"),
-                      ("850250232510", "08/05/2025", "394",
-                       "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe", "MV EVENTOS E SERVICOS LTDA"),
-                  ]),
-    "943437644": ("Massa Snow Acrilex", "Aguardando exame de mérito", "ACRILEX TINTAS ESPECIAIS S/A", "Vilage Marcas e Patentes  Ltda",
-                  "17/04/2026", [
-                      ("850260566568", "28/10/2026", "339", "Manifestação", "ACRILEX TINTAS ESPECIAIS S/A"),
-                      ("850260315646", "26/06/2026", "332", "Oposição - valor por classe",
-                       "VOLKSWAGEN DO BRASIL INDÚSTRIA DE VEÍCULOS AUTOMOTORES LTDA."),
-                  ]),
+    "944040470": (
+        "TELEVAULT",
+        "Aguardando manifestação sobre oposição",
+        "CEI - CONTROLES ELETRÔNICOS INTELIGENTES LTDA",
+        None,
+        "10/06/2026",
+        [
+            ("850260447873", "31/08/2026", "332", "Oposição - valor por classe", "ASSA ABLOY BRASIL INDÚSTRIA E COMÉRCIO LTDA"),
+            (
+                "850260280901",
+                "10/06/2026",
+                "389",
+                "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
+                "CEI - CONTROLES ELETRÔNICOS INTELIGENTES LTDA",
+            ),
+        ],
+    ),
+    "944032028": (
+        "EPROK",
+        "Aguardando manifestação sobre oposição",
+        "Tprojetto Group LTDA",
+        None,
+        "09/06/2026",
+        [
+            ("850260505259", "28/09/2026", "332", "Oposição - valor por classe", "EPIROC AKTIEBOLAG"),
+            (
+                "850260279661",
+                "09/06/2026",
+                "389",
+                "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
+                "Tprojetto Group LTDA",
+            ),
+        ],
+    ),
+    "943447259": (
+        "HEALTH ESSENCE",
+        "Aguardando exame de mérito",
+        "JOAO TESTE PEREIRA",
+        None,
+        "19/04/2026",
+        [
+            ("850260494593", "23/09/2026", "339", "Manifestação", "JOAO TESTE PEREIRA"),
+            ("850260358046", "17/07/2026", "332", "Oposição - valor por classe", "INP INDUSTRIA DE ALIMENTOS LTDA"),
+            (
+                "850260183253",
+                "19/04/2026",
+                "389",
+                "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
+                "JOAO TESTE PEREIRA",
+            ),
+        ],
+    ),
+    "942100506": (
+        "Instituto Ela por Elas",
+        "Aguardando exame de mérito",
+        "INSTITUTO ELA POR ELAS",
+        None,
+        "05/12/2025",
+        [
+            ("850260077262", "20/02/2026", "332", "Oposição - valor por classe", "GLOBO COMUNICAÇÃO E PARTICIPAÇÕES S.A."),
+            ("850260058486", "09/02/2026", "332", "Oposição - valor por classe", "IGREJA APOSTOLICA PLENITUDE DO TRONO DE DEUS"),
+            (
+                "850250690571",
+                "05/12/2025",
+                "389",
+                "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
+                "INSTITUTO ELA POR ELAS",
+            ),
+        ],
+    ),
+    "938028383": (
+        "ESCOLA DAS CIDADES",
+        "Aguardando apresentação e exame de recurso contra o indeferimento",
+        "TDBUSINESS LTDA",
+        None,
+        "14/02/2025",
+        [
+            (
+                "850250076465",
+                "14/02/2025",
+                "389",
+                "Pedido de registro de marca (com especificação pré-aprovada) - valor por classe",
+                "TDBUSINESS LTDA",
+            ),
+        ],
+    ),
+    "930647033": (
+        "Enraizador",
+        "Aguardando apresentação e exame de recurso contra o indeferimento",
+        "MARIA TESTE GUERRA",
+        None,
+        "01/06/2023",
+        [
+            (
+                "850230254940",
+                "01/06/2023",
+                "394",
+                "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe",
+                "MARIA TESTE GUERRA",
+            ),
+        ],
+    ),
+    "930932480": (
+        "EKOA LIFE SCIENCES",
+        "Aguardando apresentação e exame de recurso contra o indeferimento",
+        "IMP BIOINSUMOS LTDA",
+        None,
+        "27/06/2023",
+        [
+            (
+                "850260549596",
+                "21/10/2026",
+                "3000",
+                "Recurso contra indeferimento de pedido de registro de marca - valor por classe",
+                "IMP BIOINSUMOS LTDA",
+            ),
+            ("850230600631", "07/12/2023", "339", "Manifestação", "IMP BIOINSUMOS LTDA"),
+            ("850230448655", "18/09/2023", "332", "Oposição - valor por classe", "EKKOA COMERCIO PRODUTOS DE LIMPEZA EIRELI"),
+            (
+                "850230297790",
+                "27/06/2023",
+                "394",
+                "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe",
+                "IMP BIOINSUMOS LTDA",
+            ),
+        ],
+    ),
+    "939053594": (
+        "XUCRO CORAÇÃO",
+        "Aguardando processamento da concessão do registro de marca",
+        "MV EVENTOS E SERVICOS LTDA",
+        None,
+        "08/05/2025",
+        [
+            (
+                "301260304524",
+                "05/11/2026",
+                "3023",
+                "Concessão de registro de marca e expedição de certificado - Protocolo interno automático",
+                "DIRMA/GABINETE",
+            ),
+            (
+                "850250232510",
+                "08/05/2025",
+                "394",
+                "Pedido de registro de marca (com especificação de livre preenchimento) - valor por classe",
+                "MV EVENTOS E SERVICOS LTDA",
+            ),
+        ],
+    ),
+    "943437644": (
+        "Massa Snow Acrilex",
+        "Aguardando exame de mérito",
+        "ACRILEX TINTAS ESPECIAIS S/A",
+        "Vilage Marcas e Patentes  Ltda",
+        "17/04/2026",
+        [
+            ("850260566568", "28/10/2026", "339", "Manifestação", "ACRILEX TINTAS ESPECIAIS S/A"),
+            (
+                "850260315646",
+                "26/06/2026",
+                "332",
+                "Oposição - valor por classe",
+                "VOLKSWAGEN DO BRASIL INDÚSTRIA DE VEÍCULOS AUTOMOTORES LTDA.",
+            ),
+        ],
+    ),
 }
 
 
