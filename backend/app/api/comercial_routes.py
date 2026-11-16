@@ -182,3 +182,16 @@ def rpi_fontes(numero: int | None = None) -> dict:
         if em_proc
         else None,
     }
+
+
+@router.get("/sistema/status")
+def sistema_status() -> dict:
+    """V2.11: situação da operação (aguardando a próxima Revista, última importação, próxima execução)."""
+    from app import reset
+
+    with db.get_pool().connection() as conn:
+        st = reset.status_sistema(conn)
+        st["ultima_limpeza"] = conn.execute(
+            "select executado_em, executado_por from system_resets order by id desc limit 1"
+        ).fetchone()
+    return st

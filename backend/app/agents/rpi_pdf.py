@@ -19,10 +19,10 @@ from urllib.parse import urlparse
 
 from psycopg.types.json import Jsonb
 
-from app import comercial, servicos
+from app import comercial, reset, servicos
 from app.config import get_settings
 from app.jobs import queue
-from app.jobs.registry import JobContext, PermanentError, handler
+from app.jobs.registry import JobContext, PermanentError, RetryLater, handler
 from app.rpi import http
 from app.rpi.importer import import_processes
 from app.rpi.normalize import normalize_name, parse_date_br
@@ -112,6 +112,7 @@ def enfileirar_pdf(conn, ed: dict, parent_id: int | None = None) -> bool:
 def _pdf_morto(conn, job: dict, erro: str) -> None:
     ed = conn.execute("select id from rpi_editions where numero = %s", (int(job["payload"]["numero"]),)).fetchone()
     if ed:
+        reset.registrar_importacao(conn, int(job["payload"]["numero"]), ok=False, detalhe=f"PDF: {erro}")
         atualizar_fonte(conn, ed["id"], "pdf_i", status="erro", ultimo_erro=erro.splitlines()[0][:500], etapa=None,
                         uf_em_processamento=None)  # fmt: skip
 
@@ -125,6 +126,8 @@ def _lote(uf: str | None, pais: str | None) -> str:
 @handler("rpi.pdf", on_dead=_pdf_morto)
 def ler_pdf(conn, ctx: JobContext) -> dict:
     s = get_settings()
+    if reset.importacao_bloqueada(conn):
+        raise RetryLater("importações bloqueadas durante a limpeza dos dados", 120)
     numero = int(ctx.payload["numero"])
     if not comercial.dentro_do_corte(numero, s):
         return {"ignorado": f"RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima(s)})"}
@@ -257,6 +260,7 @@ def importar_lote(conn, ctx: JobContext) -> dict:
     ).fetchone()["n"]
     if pendentes == 0:
         _concluir_pdf(conn, ed["id"])
+    reset.registrar_importacao(conn, numero, ok=True)
     return {"numero": numero, "lote": lote, "registros": len(regs), "processos": len(procs),
             "elegiveis": stats.oportunidades_elegiveis, "descartadas": stats.oportunidades_descartadas,
             "oportunidades_servico": oportunidades, "analise": analise}  # fmt: skip

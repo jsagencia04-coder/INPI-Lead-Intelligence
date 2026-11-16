@@ -15,11 +15,11 @@ from urllib.parse import urlparse
 
 from psycopg.types.json import Jsonb
 
-from app import comercial, servicos
+from app import comercial, reset, servicos
 from app.agents import rpi_pdf
 from app.config import get_settings
 from app.jobs import queue
-from app.jobs.registry import JobContext, PermanentError, handler
+from app.jobs.registry import JobContext, PermanentError, RetryLater, handler
 from app.rpi import http
 from app.rpi.importer import import_processes
 from app.rpi.index import parse_index
@@ -35,6 +35,7 @@ def _filename(url: str) -> str:
 @handler("rpi.discover")
 def discover(conn, ctx: JobContext) -> dict:
     s = get_settings()
+    _sem_bloqueio(conn)
     with http.client() as c:
         r = c.get(s.rpi_index_url)
         r.raise_for_status()
@@ -111,6 +112,12 @@ def releituras_pendentes(conn) -> list[int]:
     return pend
 
 
+def _sem_bloqueio(conn) -> None:
+    """V2.11: durante uma limpeza (reset) nenhuma importação começa; tenta de novo em 2 min."""
+    if reset.importacao_bloqueada(conn):
+        raise RetryLater("importações bloqueadas durante a limpeza dos dados", 120)
+
+
 def _status(conn, edition_id: int, status: str) -> None:
     """Etapas intermediárias do XML não rebaixam uma edição que já está em uso (lida pelo PDF)."""
     conn.execute("update rpi_editions set status = %s where id = %s and status <> 'parsed'", (status, edition_id))
@@ -125,6 +132,7 @@ def _mark_error(conn, job: dict, erro: str) -> None:
                   observacoes = %s where numero = %s""",
         (msg, numero),
     )
+    reset.registrar_importacao(conn, numero, ok=False, detalhe=msg)
     conn.execute(
         """update rpi_fontes set status = 'erro', ultimo_erro = %s, atualizado_em = now()
             where fonte = 'xml' and edition_id = (select id from rpi_editions where numero = %s)""",
@@ -135,6 +143,7 @@ def _mark_error(conn, job: dict, erro: str) -> None:
 @handler("rpi.collect", on_dead=_mark_error)
 def collect(conn, ctx: JobContext) -> dict:
     s = get_settings()
+    _sem_bloqueio(conn)
     numero = int(ctx.payload["numero"])
     if not comercial.dentro_do_corte(numero, s):
         return {"ignorado": f"RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima(s)})"}
@@ -208,6 +217,7 @@ def collect(conn, ctx: JobContext) -> dict:
 @handler("rpi.parse", on_dead=_mark_error)
 def parse(conn, ctx: JobContext) -> dict:
     s = get_settings()
+    _sem_bloqueio(conn)
     numero = int(ctx.payload["numero"])
     if not comercial.dentro_do_corte(numero, s):
         return {"ignorado": f"RPI {numero} é anterior à edição mínima operacional ({comercial.edicao_minima(s)})"}
@@ -266,6 +276,7 @@ def parse(conn, ctx: JobContext) -> dict:
     auditoria = auditoria_da_edicao(conn, ed, f, stats, revista, round(time.monotonic() - inicio, 1))
     # V2.9: conciliação com o que já tinha sido lido do PDF (presença, titulares, procurador)
     resumo["conciliacao_pdf"] = rpi_pdf.conciliar(conn, ed["id"])
+    reset.registrar_importacao(conn, numero, ok=True)
     rpi_pdf.atualizar_fonte(conn, ed["id"], "xml", status="processado", processado_em=datetime.now(UTC), etapa=None,
                             registros=stats.processos_no_xml, registros_alvo=stats.oposicoes + stats.indeferimentos,
                             tempo_processamento_s=round(time.monotonic() - inicio, 1))  # fmt: skip
