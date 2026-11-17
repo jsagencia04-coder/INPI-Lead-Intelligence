@@ -195,3 +195,18 @@ def sistema_status() -> dict:
             "select executado_em, executado_por from system_resets order by id desc limit 1"
         ).fetchone()
     return st
+
+
+@router.get("/sistema/saude")
+def sistema_saude() -> dict:
+    """V2.13 · TI (Julio): última verificação e histórico das últimas 24 h."""
+    with db.get_pool().connection() as conn:
+        ult = conn.execute("select status, checks, acoes, criado_em from system_health order by id desc limit 1").fetchone()
+        hist = conn.execute(
+            """select status, count(*) n from system_health where criado_em > now() - interval '24 hours' group by 1"""
+        ).fetchall()
+        eventos = conn.execute(
+            """select tipo, descricao, criado_em from agent_events where agente = 'sistema.saude'
+                order by id desc limit 20"""
+        ).fetchall()
+    return {"ultima": ult, "ultimas_24h": {r["status"]: r["n"] for r in hist}, "eventos": eventos}

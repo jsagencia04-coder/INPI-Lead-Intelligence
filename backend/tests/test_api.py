@@ -11,7 +11,7 @@ def client():
 def test_health():
     with client() as c:
         r = c.get("/health")
-    assert r.status_code == 200 and r.json()["schema"].endswith("_reset_operacional_v211.sql")
+    assert r.status_code == 200 and r.json()["schema"].endswith("_ti_monitoramento_v213.sql")
 
 
 def test_fluxo_api_fila_worker_dashboard():

@@ -36,6 +36,7 @@ PRESERVADAS = {
     "cnpj_estabelecimentos": "base pública da Receita",
     "cnpj_municipios": "base pública da Receita",
     "system_resets": "registro das próprias limpezas",
+    "system_health": "histórico de saúde do sistema (TI, 14 dias)",
     "_modelos_fabrica": "cópia de fábrica dos modelos (só existe no ambiente de testes)",
 }
 

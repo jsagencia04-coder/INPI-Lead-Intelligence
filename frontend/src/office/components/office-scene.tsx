@@ -8,7 +8,7 @@ import type { AgentStatus, DeptStatus } from "../types";
 import { SpriteDefs } from "./agent-sprite";
 import { Room } from "./room";
 
-const COLS = 4, ROWS = 2;
+const COLS = Math.max(...DEPARTAMENTOS.map((d) => d.col)) + 1, ROWS = Math.max(...DEPARTAMENTOS.map((d) => d.row)) + 1;
 const MUNDO_W = COLS * (ROOM_W + GAP), MUNDO_D = ROWS * (ROOM_D + GAP);
 // limites da cena em pixels (inclui paredes e cabeças acima do piso)
 const FACHADA_H = 150;
@@ -57,7 +57,7 @@ function Fachada({ comprimento, espelhar, marca }: { comprimento: number; espelh
       <rect x={0} y={-FACHADA_H - 6} width={L} height={6} fill="#2a3140" />
       {marca && (
         <g transform={`translate(${L - 320} ${-FACHADA_H + 34})`}>
-          <text fontSize={20} fontWeight={800} letterSpacing={6} fill="url(#office-latao)">INPI AI OFFICE</text>
+          <text fontSize={20} fontWeight={800} letterSpacing={6} fill="url(#office-latao)">AGENTE DE MARCAS</text>
           <text y={16} fontSize={8.5} letterSpacing={3.2} fill="#c9a45c" opacity={0.85}>INTELIGÊNCIA EM PROPRIEDADE INDUSTRIAL</text>
         </g>
       )}

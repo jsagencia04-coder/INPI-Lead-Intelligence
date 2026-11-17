@@ -23,7 +23,7 @@ export type Agent = {
   jobTypes: string[];
   modelo: string; // "sem IA" para agentes determinísticos
   mesa: { x: number; y: number }; // posição da mesa na sala (tiles)
-  visual: { cabelo: string; pele: string; camisa: string; calca: string; destaque: string };
+  visual: { cabelo: string; pele: string; camisa: string; calca: string; destaque: string; longo?: boolean };
   /** o que o agente sabe fazer melhor (texto da Central de Operações) */
   especialidade?: string;
   /** módulo da plataforma onde o trabalho do agente aparece */

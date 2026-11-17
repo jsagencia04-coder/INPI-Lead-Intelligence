@@ -28,9 +28,9 @@ describe("projeção isométrica", () => {
 });
 
 describe("configuração", () => {
-  it("tem os 8 departamentos pedidos e todo agente pertence a um deles", () => {
+  it("tem os 9 departamentos (com a TI) e todo agente pertence a um deles", () => {
     expect(DEPARTAMENTOS.map((d) => d.nome)).toEqual(
-      ["Diretoria", "RPI", "Processamento", "INPI", "Investigação", "Validação", "Comercial", "Relatórios"]);
+      ["Diretoria", "RPI", "Processamento", "INPI", "Investigação", "Validação", "Comercial", "TI", "Relatórios"]);
     const ids = new Set(DEPARTAMENTOS.map((d) => d.id));
     for (const a of AGENTES) expect(ids.has(a.departamento)).toBe(true);
   });
@@ -127,6 +127,11 @@ describe("identidade da Diretoria", () => {
     expect(s.jobTypes).toContain("rpi.semana");
     expect(s.lider).toBe(true);
     expect(AGENTES.filter((a) => a.lider)).toHaveLength(1);
+  });
+  it("o setor de TI tem o JULIO, responsável pela verificação de saúde (sistema.saude)", () => {
+    const j = AGENTES.find((a) => a.departamento === "ti")!;
+    expect(j.nome).toBe("JULIO");
+    expect(j.jobTypes).toEqual(["sistema.saude"]);
   });
   it("todo agente tem especialidade e os novos tipos de job têm responsável", () => {
     for (const a of AGENTES) expect(a.especialidade?.length).toBeGreaterThan(20);

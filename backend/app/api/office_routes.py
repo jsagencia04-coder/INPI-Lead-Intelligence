@@ -61,6 +61,8 @@ def describe_job(tipo: str, payload: dict | None) -> str:
         return "Consolidando o relatório semanal"
     if tipo == "rpi.semana" and "numero" in p:
         return f"Distribuindo a RPI {p['numero']} por estado (SC primeiro)"
+    if tipo == "sistema.saude":
+        return "Verificando a saúde do sistema"
     if tipo == "rpi.semana_check":
         return "Acompanhando a operação semanal da RPI"
     if tipo == "cnpj.recontatos":
@@ -181,6 +183,10 @@ def office_state(conn) -> dict:
             "agendamentos_atrasados": [r["nome"] for r in atrasados],
             "ia_configurada": bool(get_settings().anthropic_api_key),
         },
+        # V2.13: última verificação da TI (Julio)
+        "saude": conn.execute(
+            "select status, checks, criado_em from system_health order by id desc limit 1"
+        ).fetchone(),
     }
 
 

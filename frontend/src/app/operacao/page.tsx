@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorBox, PageHeader } from "@/components/page-header";
+import { SaudeSistema } from "@/components/saude-sistema";
 import { JobStatusBadge } from "@/components/status-badge";
 import { useApi } from "@/components/use-api";
 import { api } from "@/lib/api";
@@ -29,6 +30,7 @@ export default function OperacaoPage() {
   return (
     <>
       <PageHeader title="Operação" description="Agendamentos dos agentes, saúde da fila e custo de IA. Atualiza a cada 10 s." />
+      <SaudeSistema />
       <ErrorBox error={error} />
       {data && !data.ia_configurada && (
         <div className="mb-4 rounded-md border bg-muted/40 p-3 text-sm">

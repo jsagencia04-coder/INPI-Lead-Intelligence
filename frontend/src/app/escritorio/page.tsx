@@ -233,7 +233,7 @@ function Diretoria({ st, statuses, depts }: { st: OfficeState | null; statuses: 
     ["Concluídas hoje", st ? st.kpis.concluidas_hoje.toLocaleString("pt-BR") : "—", "tarefas"],
     ["Falhas hoje", st ? st.kpis.falhas_hoje : "—", st?.kpis.falhas_hoje ? "revisar" : "nenhuma"],
   ];
-  const setores = DEPARTAMENTOS.filter((d) => d.id !== "diretoria");
+  const setores = DEPARTAMENTOS.filter((d) => d.id !== "diretoria").filter((d) => d.id !== "ti");  // TI acompanha todo o fluxo, fora da sequência
   return (
     <section className="relative overflow-hidden rounded-2xl border border-[#c9a45c]/30 bg-[radial-gradient(110%_130%_at_0%_0%,#2e1f5e_0%,#151a2e_55%,#0f1320_100%)] p-5 shadow-2xl">
       <div className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-[#c9a45c]/10 blur-3xl" />
@@ -442,7 +442,7 @@ export default function EscritorioPage() {
     <div className="dark -m-4 flex h-[calc(100dvh-3.5rem)] flex-col bg-[#0b0f17] text-foreground md:-m-6 lg:-m-8">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-[#111827] to-[#0b0f17] px-4 py-3 md:px-6">
         <div>
-          <div className="eyebrow bg-gradient-to-r from-[#f0d9a3] to-[#c9a45c] bg-clip-text text-transparent">INPI AI OFFICE</div>
+          <div className="eyebrow bg-gradient-to-r from-[#f0d9a3] to-[#c9a45c] bg-clip-text text-transparent">AGENTE DE MARCAS</div>
           <h1 className="flex items-center gap-2 text-xl font-semibold text-white"><Bot className="size-5 text-[#e2c27c]" />Central de Operações IA</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -55,7 +55,7 @@ def clean(database):
                 audit_log, review_tasks, outreach_log, lead_processes, leads,
                contacts, evidences, research_runs, inpi_verifications, process_holders, opportunities,
                holders, publications, processes, rpi_files, rpi_editions, llm_calls, lead_notes, reports,
-               exports_log, suppression_list, system_resets, cnpj_estabelecimentos, cnpj_empresas, agent_events restart identity cascade"""
+               exports_log, suppression_list, system_resets, system_health, cnpj_estabelecimentos, cnpj_empresas, agent_events restart identity cascade"""
         )
         c.execute("update app_config set valor = 'demo' where chave = 'ambiente'")
         c.execute("update app_config set valor = 'false' where chave = 'whatsapp_envio_bloqueado'")
