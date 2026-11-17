@@ -247,3 +247,19 @@ def test_um_clique_sem_autorizacao_bloqueia(conn, evo, monkeypatch):
         json={"contact_id": c["id"], "texto": texto, "chave": "um-clique-0003"},
     )
     assert r.status_code == 409 and "autoriza" in r.text.lower() and evo.envios == []
+
+
+def test_primeiro_contato_por_legitimo_interesse(conn, evo, monkeypatch):
+    """V2.14: com a base legal 'legitimo_interesse', a 1ª mensagem sai sem autorização prévia; só uma por contato."""
+    conn.execute("update app_config set valor = 'legitimo_interesse' where chave = 'primeiro_contato_base_legal'")
+    lead, c = preparar(conn, consentimento=False)
+    configurar(monkeypatch, real_mode=True)
+    texto = api("POST", "/api/wa-modelos/MODELO_01/previa", json={"lead_id": lead["id"]}).json()["texto"].replace("[marca]", "X")
+    r = api("POST", f"/api/primeiro-contato/{lead['id']}/enviar",
+            json={"contact_id": c["id"], "texto": texto, "chave": "legitimo-0001"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert len(evo.envios) == 1
+    # segunda mensagem para o mesmo contato: bloqueada (primeiro contato é único)
+    r2 = api("POST", f"/api/primeiro-contato/{lead['id']}/enviar",
+             json={"contact_id": c["id"], "texto": texto + " ", "chave": "legitimo-0002"})  # fmt: skip
+    assert r2.status_code == 409 and len(evo.envios) == 1

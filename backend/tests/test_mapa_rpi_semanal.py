@@ -345,7 +345,8 @@ def test_central_rpi_mostra_etapas_reais(conn, mundo):  # noqa: F811
 
 def test_atraso_da_rpi_e_falha_geram_alerta(conn):
     conn.execute(
-        "insert into rpi_editions (numero, data_publicacao, status, fonte_url) values (2914, '2026-11-10', 'parsed', 'x')"
+        "insert into rpi_editions (numero, data_publicacao, status, fonte_url, detectada_em)"
+        " values (2914, '2026-11-10', 'parsed', 'x', '2026-11-10 09:00-03')"  # data fixa: o teste não depende de hoje
     )
     qua = datetime(2026, 11, 18, 9, 0, tzinfo=SP)  # quarta da semana seguinte, sem a 2915
     terca_manha = datetime(2026, 11, 17, 10, 0, tzinfo=SP)

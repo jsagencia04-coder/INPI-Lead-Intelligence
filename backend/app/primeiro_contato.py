@@ -216,7 +216,7 @@ def verificacoes(
     c = conn.execute("select * from contacts where id = %s", (r["contact_id"],)).fetchone()
     v.append(ok("numero_atual", c and c["valor_normalizado"] == r["numero"] and c["verificacao"] != "invalido",
                 "Número confere com o contato", "O número do contato mudou ou foi invalidado"))  # fmt: skip
-    e = consent.elegibilidade(conn, r["contact_id"])
+    e = consent.elegibilidade(conn, r["contact_id"], primeiro_contato=True)
     for regra in e["regras"]:
         v.append({"regra": f"consentimento:{regra['regra']}", "ok": regra["ok"], "detalhe": regra["detalhe"]})
     anterior = conn.execute(
