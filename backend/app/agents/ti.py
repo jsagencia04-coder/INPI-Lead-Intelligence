@@ -90,7 +90,7 @@ def verificar(conn, agora: datetime | None = None, whatsapp: bool = True) -> tup
     else:
         checks.append(_c("rpi_semana", "ok", "Dentro do horário esperado da Revista"))
 
-    if whatsapp and evolution.modo(s) == "evolution":
+    if whatsapp and s.mensageria_provedor == "evolution" and evolution.configurada(s):
         w = evolution.verificar_conexao(conn)
         ok = w.get("status") in ("conectado", "open")
         checks.append(_c("whatsapp", "ok" if ok else "falha",
