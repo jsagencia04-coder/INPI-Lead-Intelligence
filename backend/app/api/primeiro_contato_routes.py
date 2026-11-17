@@ -11,7 +11,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from app import db, evolution, evolution_webhook, modelos, primeiro_contato, security
+from app import consent, db, evolution, evolution_webhook, modelos, primeiro_contato, security
 from app.auth import User, current_user
 from app.config import get_settings
 from app.primeiro_contato import Recusado
@@ -107,7 +107,8 @@ def detalhe(lead_id: int, user: User = Depends(current_user)) -> dict:
         )
         verifs = primeiro_contato.verificacoes(conn, r, papel=user.papel) if r else []
         historico = conn.execute("select * from wa_auditoria where lead_id = %s order by id desc limit 50", (lead_id,)).fetchall()
-    return {"lead": f["lead"], "oportunidade": f["oportunidade"], "contatos": contatos, "rascunho": r,
+        base_legal = consent.base_legal_primeiro_contato(conn)  # V2.14
+    return {"base_legal": base_legal, "lead": f["lead"], "oportunidade": f["oportunidade"], "contatos": contatos, "rascunho": r,
             "consentimentos": consentimentos, "envios": envios, "verificacoes": verifs, "historico": historico,
             "modo": evolution.modo(), "provedor": get_settings().mensageria_provedor,
             "modelos": lista_modelos, "modelo_sugerido": modelos.sugerido(f["oportunidade"]), "modelo_rascunho": modelo_rascunho}  # fmt: skip

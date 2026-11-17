@@ -159,7 +159,10 @@ export function WhatsappCard({ lead, podeProspectar, onChange }: { lead: any; po
           <Textarea value={textoEvo} onChange={(e) => setTextoEvo(e.target.value)} rows={8} disabled={!!enviado || enviando}
             className="bg-background text-sm" aria-label="Mensagem do WhatsApp" />
           {lacuna && !enviado && <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Complete o texto entre colchetes (ex.: [marca]) antes de enviar.</p>}
-          {!consentido && !enviado && <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Sem autorização do destinatário registrada: o envio será recusado. Registre a autorização na Central de contatos.</p>}
+          {det?.base_legal === "legitimo_interesse"
+            ? !enviado && atual.wa_nivel !== "company_evidence" && atual.wa_nivel !== "human_confirmed" &&
+              <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Confirme o WhatsApp (botão &quot;Confirmar WhatsApp&quot;) antes de enviar o primeiro contato.</p>
+            : !consentido && !enviado && <p className="flex items-center gap-1.5 text-xs text-amber-800"><AlertTriangle className="size-3.5" />Sem autorização do destinatário registrada: o envio será recusado. Registre a autorização na Central de contatos.</p>}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={enviarAgora} disabled={!podeProspectar || enviando || !!enviado || lacuna || !textoEvo.trim()}
               className={`min-w-36 text-white ${enviado ? "bg-emerald-700 hover:bg-emerald-700" : "bg-[#25D366] hover:bg-[#1ebe5a]"}`}>
