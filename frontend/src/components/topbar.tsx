@@ -34,7 +34,7 @@ export function Topbar() {
         <Menu className="size-5" />
       </button>
       <nav className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex" aria-label="Você está em">
-        <span className="text-muted-foreground">{atual?.grupo ?? "INPI Lead Intelligence"}</span>
+        <span className="text-muted-foreground">{atual?.grupo ?? "Agente de Marcas"}</span>
         {atual && <><ChevronRight className="size-3.5 text-muted-foreground" /><span className="truncate font-medium">{atual.item.label}</span></>}
       </nav>
 

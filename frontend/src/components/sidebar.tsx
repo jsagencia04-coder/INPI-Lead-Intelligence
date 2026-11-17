@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { LogOut, Sparkles, X } from "lucide-react";
+import { LogOut, X } from "lucide-react";
+import { LogoAgente, NOME_SISTEMA } from "@/components/marca";
 import { cn } from "@/lib/utils";
 import { AMBIENTE, PAPEL, sair, type Eu } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -43,12 +44,10 @@ export function Sidebar() {
         )}
       >
         <div className="flex items-center gap-3 px-5 pb-4 pt-5">
-          <div className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 shadow-lg shadow-violet-900/40">
-            <Sparkles className="size-5 text-white" />
-          </div>
+          <LogoAgente className="size-9 shrink-0 drop-shadow" />
           <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-semibold text-white">INPI Lead Intelligence</div>
-            <div className="text-[11px] text-slate-400">Inteligência comercial com IA</div>
+            <div className="truncate text-sm font-semibold text-white">{NOME_SISTEMA}</div>
+            <div className="text-[11px] text-slate-400">Inteligência em marcas</div>
           </div>
           <button onClick={() => setAberto(false)} className="rounded p-1 hover:bg-white/10 md:hidden" aria-label="Fechar menu"><X className="size-4" /></button>
         </div>

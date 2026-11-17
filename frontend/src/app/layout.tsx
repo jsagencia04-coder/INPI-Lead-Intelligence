@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 
 export const metadata: Metadata = {
-  title: "INPI Lead Intelligence",
+  title: "Agente de Marcas",
   description: "Plataforma de inteligência comercial para titulares de marcas a partir da RPI",
 };
 
